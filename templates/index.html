@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TubeDigest</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>TubeDigest</h1>
+            <p class="subtitle">YouTube Transcript Downloader</p>
+        </header>
+
+        <main>
+            <section class="input-section">
+                <label for="urls">Paste YouTube URLs (one per line):</label>
+                <textarea id="urls" rows="5" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/playlist?list=..."></textarea>
+                <div class="options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="timestamps" checked>
+                        Include timestamps
+                    </label>
+                    <div class="buttons">
+                        <button id="btn-start" class="btn btn-primary">Fetch Transcripts</button>
+                        <button id="btn-folder" class="btn btn-secondary">Open Folder</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="progress-section" id="progress-section" hidden>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <p class="progress-text" id="progress-text"></p>
+            </section>
+
+            <section class="log-section">
+                <h2>Log</h2>
+                <div class="log-panel" id="log-panel"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
