@@ -20,6 +20,17 @@ DEFAULTS = {
         'whisper_device': 'auto',
         'subtitle_langs': ['en', 'en-US', 'en-GB'],
     },
+    'summarization': {
+        'providers': ['gemini', 'ollama', 'claude_cli'],
+        'gemini_model': 'gemini-2.0-flash',
+        'ollama_model': 'llama3.1',
+        'ollama_url': 'http://localhost:11434',
+        'prompt': (
+            'Summarize the following YouTube video transcript concisely. '
+            'Highlight the main topics, key points, and any conclusions or '
+            'takeaways. Use clear headings and bullet points where appropriate.'
+        ),
+    },
 }
 
 _cached: dict | None = None
@@ -54,3 +65,8 @@ def load_config(force_reload: bool = False) -> dict:
 def get_transcription_config() -> dict:
     """Shortcut to get the transcription section."""
     return load_config()['transcription']
+
+
+def get_summarization_config() -> dict:
+    """Shortcut to get the summarization section."""
+    return load_config()['summarization']

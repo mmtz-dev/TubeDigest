@@ -198,16 +198,104 @@ textarea:focus {
     margin-top: 0.3rem;
 }
 
+/* Divider */
+.divider {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 2rem 0;
+}
+
+/* Summarize Section */
+.summarize-section h2 {
+    font-size: 1.25rem;
+    color: #ff4444;
+    margin-bottom: 0.3rem;
+}
+
+.section-desc {
+    color: #888;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.summarize-controls {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+/* Transcript List */
+.transcript-list {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 0.75rem;
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+}
+
+.transcript-list .empty-hint {
+    color: #666;
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.transcript-group-header {
+    color: #ffa726;
+    font-weight: 500;
+    padding: 0.4rem 0 0.2rem;
+    border-bottom: 1px solid #2a2a2a;
+    margin-bottom: 0.3rem;
+    font-size: 0.8rem;
+}
+
+.transcript-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.2rem;
+}
+
+.transcript-item input[type="checkbox"] {
+    accent-color: #ff4444;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.transcript-item .name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #ccc;
+}
+
+.summary-badge {
+    background: #2e7d32;
+    color: #c8e6c9;
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
 /* Scrollbar */
-.log-panel::-webkit-scrollbar {
+.log-panel::-webkit-scrollbar,
+.transcript-list::-webkit-scrollbar {
     width: 6px;
 }
 
-.log-panel::-webkit-scrollbar-track {
+.log-panel::-webkit-scrollbar-track,
+.transcript-list::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.log-panel::-webkit-scrollbar-thumb {
+.log-panel::-webkit-scrollbar-thumb,
+.transcript-list::-webkit-scrollbar-thumb {
     background: #444;
     border-radius: 3px;
 }

@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/Transcriptions
+RUN mkdir -p /app/Transcriptions /app/Summaries
 
 ENV RUNNING_IN_DOCKER=true
 

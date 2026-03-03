@@ -7,6 +7,10 @@ import subprocess
 import time
 from queue import Empty
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask, Response, jsonify, render_template, request
 
 logging.basicConfig(
@@ -15,6 +19,7 @@ logging.basicConfig(
 )
 
 from src.jobs import JobManager
+from src.summary_storage import list_transcripts, SUMMARIES_DIR
 
 app = Flask(__name__)
 job_manager = JobManager()
@@ -96,6 +101,55 @@ def open_folder():
         return jsonify({'ok': True})
     except FileNotFoundError:
         return jsonify({'error': 'xdg-open not available', 'path': folder}), 500
+
+
+@app.route('/api/transcripts')
+def get_transcripts():
+    return jsonify({'transcripts': list_transcripts()})
+
+
+@app.route('/api/summarize', methods=['POST'])
+def start_summarize():
+    body = request.get_json(force=True)
+    paths = body.get('paths', [])
+
+    if not paths:
+        return jsonify({'error': 'No transcript paths provided'}), 400
+
+    # Validate paths: no directory traversal or absolute paths
+    for p in paths:
+        if '..' in p or p.startswith('/'):
+            return jsonify({'error': f'Invalid path: {p}'}), 400
+
+    job_id = job_manager.create_summarization_job(paths)
+    return jsonify({'job_id': job_id})
+
+
+@app.route('/api/summaries/<path:rel_path>')
+def get_summary(rel_path):
+    if '..' in rel_path or rel_path.startswith('/'):
+        return jsonify({'error': 'Invalid path'}), 400
+
+    full_path = os.path.join(SUMMARIES_DIR, rel_path)
+    if not os.path.isfile(full_path):
+        return jsonify({'error': 'Summary not found'}), 404
+
+    with open(full_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    return jsonify({'content': content})
+
+
+@app.route('/api/open-summaries-folder', methods=['POST'])
+def open_summaries_folder():
+    if IN_DOCKER:
+        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': '/app/Summaries'}), 400
+
+    os.makedirs(SUMMARIES_DIR, exist_ok=True)
+    try:
+        subprocess.Popen(['xdg-open', SUMMARIES_DIR])
+        return jsonify({'ok': True})
+    except FileNotFoundError:
+        return jsonify({'error': 'xdg-open not available', 'path': SUMMARIES_DIR}), 500
 
 
 if __name__ == '__main__':

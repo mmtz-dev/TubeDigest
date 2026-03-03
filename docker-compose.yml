@@ -5,9 +5,11 @@ services:
       - "5000:5000"
     volumes:
       - ./Transcriptions:/app/Transcriptions
+      - ./Summaries:/app/Summaries
       - whisper-cache:/root/.cache/whisper
     environment:
       - RUNNING_IN_DOCKER=true
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
 
 volumes:
   whisper-cache:

@@ -40,6 +40,36 @@
                 <h2>Log</h2>
                 <div class="log-panel" id="log-panel"></div>
             </section>
+
+            <div class="divider"></div>
+
+            <section class="summarize-section">
+                <h2>Summarize Transcripts</h2>
+                <p class="section-desc">Select saved transcripts to generate AI summaries using Gemini, Ollama, or Claude CLI.</p>
+
+                <div class="summarize-controls">
+                    <button id="btn-refresh" class="btn btn-secondary">Refresh List</button>
+                    <button id="btn-check-all" class="btn btn-secondary">Check All</button>
+                    <button id="btn-summarize" class="btn btn-primary">Summarize Checked</button>
+                    <button id="btn-summaries-folder" class="btn btn-secondary">Open Summaries Folder</button>
+                </div>
+
+                <div class="transcript-list" id="transcript-list">
+                    <p class="empty-hint">Click "Refresh List" to load transcripts.</p>
+                </div>
+
+                <section class="progress-section" id="summary-progress-section" hidden>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="summary-progress-bar"></div>
+                    </div>
+                    <p class="progress-text" id="summary-progress-text"></p>
+                </section>
+
+                <section class="log-section">
+                    <h2>Summary Log</h2>
+                    <div class="log-panel" id="summary-log-panel"></div>
+                </section>
+            </section>
         </main>
     </div>
 

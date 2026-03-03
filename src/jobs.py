@@ -136,6 +136,72 @@ class JobManager:
         )
         self._emit(job_id, 'done')
 
+    def create_summarization_job(self, transcript_paths: list[str]) -> str:
+        """Create a new summarization job and start processing in a background thread."""
+        job_id = uuid.uuid4().hex[:12]
+        queue = Queue()
+        self._jobs[job_id] = {
+            'queue': queue,
+            'status': 'running',
+            'succeeded': 0,
+            'failed': 0,
+            'total': 0,
+        }
+        thread = threading.Thread(
+            target=self._process_summarization_job,
+            args=(job_id, transcript_paths),
+            daemon=True,
+        )
+        thread.start()
+        return job_id
+
+    def _process_summarization_job(self, job_id: str, paths: list[str]):
+        from src.config import get_summarization_config
+        from src.summarizer import summarize
+        from src.summary_storage import read_transcript, save_summary
+
+        job = self._jobs[job_id]
+        try:
+            total = len(paths)
+            job['total'] = total
+            self._emit(job_id, 'total', count=total)
+
+            if total == 0:
+                self._emit(job_id, 'error', current=0, video_id='', message='No transcripts selected.')
+                self._finish_job(job_id)
+                return
+
+            cfg = get_summarization_config()
+
+            for i, rel_path in enumerate(paths, 1):
+                self._emit(
+                    job_id, 'progress',
+                    current=i, total=total,
+                    message=f'Summarizing {i}/{total}: {rel_path}',
+                )
+                try:
+                    transcript_text = read_transcript(rel_path)
+
+                    def job_emit(event_type, **data):
+                        self._emit(job_id, event_type, **data)
+
+                    summary_text, provider_name = summarize(transcript_text, cfg, emit_fn=job_emit)
+                    save_summary(rel_path, summary_text, provider_name)
+
+                    job['succeeded'] += 1
+                    self._emit(job_id, 'success', current=i, title=rel_path)
+                except Exception as e:
+                    job['failed'] += 1
+                    self._emit(
+                        job_id, 'error',
+                        current=i, video_id='',
+                        message=f'{rel_path}: {e}',
+                    )
+        except Exception as e:
+            self._emit(job_id, 'error', current=0, video_id='', message=f'Job failed: {e}')
+
+        self._finish_job(job_id)
+
     def _resolve_videos(self, job_id: str, urls: list[str]) -> list[dict]:
         """Expand URLs into a flat list of {video_id, playlist_name?} dicts."""
         videos = []

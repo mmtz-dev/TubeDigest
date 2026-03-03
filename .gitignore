@@ -23,6 +23,7 @@ env/
 
 # Output
 Transcriptions/
+Summaries/
 
 # Docker
 .dockerignore
