@@ -1,0 +1,9 @@
+services:
+  tubedigest:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./Transcriptions:/app/Transcriptions
+    environment:
+      - RUNNING_IN_DOCKER=true
