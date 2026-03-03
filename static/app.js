@@ -85,6 +85,10 @@ function listenToProgress(jobId) {
                 log(`Saved: ${msg.title}`, 'success');
                 break;
 
+            case 'warning':
+                log(msg.message, 'warning');
+                break;
+
             case 'error':
                 log(`Error${msg.video_id ? ` (${msg.video_id})` : ''}: ${msg.message}`, 'error');
                 break;

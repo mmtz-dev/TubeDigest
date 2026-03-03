@@ -182,6 +182,10 @@ textarea:focus {
     color: #4caf50;
 }
 
+.log-entry.warning {
+    color: #ffd54f;
+}
+
 .log-entry.error {
     color: #ff6b6b;
 }

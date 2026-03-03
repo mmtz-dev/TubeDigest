@@ -1,12 +1,18 @@
 """Flask entry point with routes and SSE streaming."""
 
 import json
+import logging
 import os
 import subprocess
 import time
 from queue import Empty
 
 from flask import Flask, Response, jsonify, render_template, request
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
+)
 
 from src.jobs import JobManager
 

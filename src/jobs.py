@@ -7,7 +7,7 @@ import time
 import uuid
 from queue import Queue
 
-from src.fetcher import extract_video_id, fetch_video_metadata, fetch_transcript
+from src.fetcher import extract_video_id, fetch_video_metadata, fetch_transcript_auto
 from src.playlist import is_playlist_url, extract_playlist_videos
 from src.storage import format_transcript_content, save_transcript
 
@@ -83,11 +83,18 @@ class JobManager:
                     metadata = fetch_video_metadata(video_id)
                     title = metadata['title']
 
+                    duration = metadata.get('duration')
+
+                    def video_emit(event_type, **data):
+                        self._emit(job_id, event_type, **data)
+
                     self._emit(
                         job_id, 'status',
                         message=f'Fetching transcript for: {title}',
                     )
-                    transcript = fetch_transcript(video_id, include_timestamps)
+                    transcript, method_used = fetch_transcript_auto(
+                        video_id, duration, include_timestamps, emit_fn=video_emit,
+                    )
                     content = format_transcript_content(title, video_id, transcript, include_timestamps)
                     save_transcript(title, video_id, content, playlist_name)
 

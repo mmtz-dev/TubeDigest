@@ -1,0 +1,18 @@
+transcription:
+  short_max_minutes: 10
+  mid_max_minutes: 20
+
+  # Method chains per duration tier (tried in order, falls back on failure)
+  short_methods: [whisper]
+  mid_methods: [ytdlp_subtitles, youtube_transcript_api, whisper]
+  long_methods: [youtube_transcript_api, ytdlp_subtitles, whisper]
+
+  # Daily usage tracking: if youtube-transcript-api has been used fewer than
+  # this many times in the last 24h, skip duration routing and use it first
+  # (with normal fallback). Once the limit is hit, switch to duration-based routing.
+  yt_api_daily_limit: 10
+
+  whisper_enabled: true
+  whisper_model: "base"           # tiny | base | small | medium | large
+  whisper_device: "auto"          # auto (GPU if available, else CPU) | cuda | cpu
+  subtitle_langs: [en, en-US, en-GB]
