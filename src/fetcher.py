@@ -5,7 +5,6 @@ import time
 
 import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.proxies import GenericProxies
 
 
 YOUTUBE_URL_PATTERNS = [
