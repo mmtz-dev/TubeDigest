@@ -1,0 +1,96 @@
+"""Flask entry point with routes and SSE streaming."""
+
+import json
+import os
+import subprocess
+import time
+from queue import Empty
+
+from flask import Flask, Response, jsonify, render_template, request
+
+from src.jobs import JobManager
+
+app = Flask(__name__)
+job_manager = JobManager()
+
+IN_DOCKER = os.environ.get('RUNNING_IN_DOCKER', '').lower() == 'true'
+
+
+def format_sse(data: dict) -> str:
+    """Format a dict as an SSE message."""
+    return f"data: {json.dumps(data)}\n\n"
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/api/start', methods=['POST'])
+def start_job():
+    body = request.get_json(force=True)
+    raw_urls = body.get('urls', '')
+    include_timestamps = body.get('include_timestamps', True)
+
+    if isinstance(raw_urls, str):
+        urls = [u.strip() for u in raw_urls.splitlines() if u.strip()]
+    else:
+        urls = raw_urls
+
+    if not urls:
+        return jsonify({'error': 'No URLs provided'}), 400
+
+    job_id = job_manager.create_job(urls, include_timestamps)
+    return jsonify({'job_id': job_id})
+
+
+@app.route('/api/progress/<job_id>')
+def progress(job_id):
+    queue = job_manager.get_queue(job_id)
+    if queue is None:
+        return jsonify({'error': 'Job not found'}), 404
+
+    def stream():
+        last_keepalive = time.time()
+        while True:
+            try:
+                msg = queue.get(timeout=1)
+                yield format_sse(msg)
+                if msg.get('type') == 'done':
+                    break
+            except Empty:
+                # Send keepalive comment every 30s
+                if time.time() - last_keepalive > 30:
+                    yield ": keepalive\n\n"
+                    last_keepalive = time.time()
+
+    return Response(stream(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+    })
+
+
+@app.route('/api/jobs/<job_id>')
+def job_status(job_id):
+    status = job_manager.get_status(job_id)
+    if status is None:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify(status)
+
+
+@app.route('/api/open-folder', methods=['POST'])
+def open_folder():
+    if IN_DOCKER:
+        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': '/app/Transcriptions'}), 400
+
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Transcriptions')
+    os.makedirs(folder, exist_ok=True)
+    try:
+        subprocess.Popen(['xdg-open', folder])
+        return jsonify({'ok': True})
+    except FileNotFoundError:
+        return jsonify({'error': 'xdg-open not available', 'path': folder}), 500
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
