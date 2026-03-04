@@ -121,10 +121,54 @@ class ClaudeCLIProvider(BaseProvider):
         return result.stdout.strip()
 
 
+class ClaudeProxyProvider(BaseProvider):
+    """Reach Claude Code via the host-side HTTP proxy (for Docker)."""
+
+    name = 'claude_proxy'
+
+    def _base_url(self) -> str:
+        return os.environ.get(
+            'CLAUDE_PROXY_URL', 'http://host.docker.internal:9100'
+        )
+
+    def is_available(self) -> bool:
+        try:
+            req = urllib.request.Request(f"{self._base_url()}/health", method='GET')
+            resp = urllib.request.urlopen(req, timeout=3)
+            data = json.loads(resp.read())
+            return data.get('claude_available', False)
+        except Exception:
+            return False
+
+    def get_setup_hint(self) -> str | None:
+        return (
+            'Claude proxy is not reachable. '
+            'Start it on the host: python claude_proxy.py'
+        )
+
+    def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
+        base_url = cfg.get('claude_proxy_url', self._base_url())
+        payload = json.dumps({'prompt': prompt, 'text': transcript_text}).encode()
+
+        req = urllib.request.Request(
+            f"{base_url}/summarize",
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+        )
+        resp = urllib.request.urlopen(req, timeout=300)
+        data = json.loads(resp.read())
+
+        if 'summary' not in data:
+            raise RuntimeError(f"Unexpected proxy response: {data}")
+        return data['summary']
+
+
 PROVIDER_REGISTRY: dict[str, type[BaseProvider]] = {
     'gemini': GeminiProvider,
     'ollama': OllamaProvider,
     'claude_cli': ClaudeCLIProvider,
+    'claude_proxy': ClaudeProxyProvider,
 }
 
 
@@ -133,7 +177,7 @@ def summarize(transcript_text: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
 
     Falls back to the next provider on failure, matching the pattern in fetch_transcript_auto.
     """
-    provider_names = cfg.get('providers', ['gemini', 'ollama', 'claude_cli'])
+    provider_names = cfg.get('providers', ['claude_cli', 'claude_proxy', 'gemini', 'ollama'])
     prompt = cfg.get('prompt', 'Summarize this transcript.')
     errors = []
 
