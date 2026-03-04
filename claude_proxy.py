@@ -52,7 +52,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         try:
             result = subprocess.run(
-                ['claude', '-p', prompt, '--stdin'],
+                ['claude', '-p', prompt],
                 input=text,
                 capture_output=True,
                 text=True,

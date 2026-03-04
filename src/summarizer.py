@@ -104,7 +104,7 @@ class ClaudeCLIProvider(BaseProvider):
 
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
         result = subprocess.run(
-            ['claude', '-p', prompt, '--stdin'],
+            ['claude', '-p', prompt],
             input=transcript_text,
             capture_output=True,
             text=True,
