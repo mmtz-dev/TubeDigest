@@ -123,7 +123,7 @@ def start_summarize():
 
     # Validate paths: no directory traversal or absolute paths
     for p in paths:
-        if '..' in p or p.startswith('/'):
+        if os.sep + '..' in p or p.startswith('..') or os.path.isabs(p):
             return jsonify({'error': f'Invalid path: {p}'}), 400
 
     job_id = job_manager.create_summarization_job(paths)
@@ -132,7 +132,7 @@ def start_summarize():
 
 @app.route('/api/summaries/<path:rel_path>')
 def get_summary(rel_path):
-    if '..' in rel_path or rel_path.startswith('/'):
+    if os.sep + '..' in rel_path or rel_path.startswith('..') or os.path.isabs(rel_path):
         return jsonify({'error': 'Invalid path'}), 400
 
     # Summary files use .md extension

@@ -10,10 +10,12 @@ BASE_DIR = os.environ.get('TRANSCRIPTIONS_DIR', _DEFAULT_DIR)
 
 
 def sanitize_filename(name: str) -> str:
-    """Remove or replace characters that are unsafe for filenames."""
-    name = re.sub(r'[<>:"/\\|?*]', '', name)
+    """Normalize to alphanumeric and underscores only."""
+    name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
     name = re.sub(r'\s+', '_', name.strip())
-    name = name[:200]  # Limit length
+    name = re.sub(r'_+', '_', name)
+    name = name.strip('_')
+    name = name[:200]
     return name
 
 
