@@ -19,7 +19,7 @@ transcription:
 
 summarization:
   # Provider priority order (tried in order, falls back on failure)
-  providers: [gemini, ollama, claude_cli]
+  providers: [claude_cli, gemini, ollama]
 
   gemini_model: "gemini-2.0-flash"
 

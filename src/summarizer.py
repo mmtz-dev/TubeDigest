@@ -21,6 +21,10 @@ class BaseProvider(ABC):
     def is_available(self) -> bool:
         """Check if this provider can be used right now."""
 
+    def get_setup_hint(self) -> str | None:
+        """Return an actionable message when the provider is not available."""
+        return None
+
     @abstractmethod
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
         """Generate a summary. Returns the summary text."""
@@ -31,6 +35,11 @@ class GeminiProvider(BaseProvider):
 
     def is_available(self) -> bool:
         return bool(os.environ.get('GEMINI_API_KEY'))
+
+    def get_setup_hint(self) -> str | None:
+        if not os.environ.get('GEMINI_API_KEY'):
+            return 'GEMINI_API_KEY not set. Add it to your .env file.'
+        return None
 
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
         from google import genai
@@ -53,6 +62,9 @@ class OllamaProvider(BaseProvider):
             return True
         except Exception:
             return False
+
+    def get_setup_hint(self) -> str | None:
+        return 'Ollama is not running. Start it or install from https://ollama.com'
 
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
         base_url = cfg.get('ollama_url', 'http://localhost:11434')
@@ -82,6 +94,14 @@ class ClaudeCLIProvider(BaseProvider):
     def is_available(self) -> bool:
         return shutil.which('claude') is not None
 
+    def get_setup_hint(self) -> str | None:
+        if not shutil.which('claude'):
+            return (
+                'Claude Code is not installed. '
+                'Install it from: https://docs.anthropic.com/en/docs/claude-code/getting-started'
+            )
+        return None
+
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
         result = subprocess.run(
             ['claude', '-p', prompt, '--stdin'],
@@ -91,7 +111,13 @@ class ClaudeCLIProvider(BaseProvider):
             timeout=300,
         )
         if result.returncode != 0:
-            raise RuntimeError(f"Claude CLI failed: {result.stderr.strip()}")
+            stderr = result.stderr.strip()
+            if any(kw in stderr.lower() for kw in ('auth', 'log in', 'login', 'sign in', 'api key', 'not authenticated')):
+                raise RuntimeError(
+                    'Claude Code is not logged in. '
+                    'Run "claude" in your terminal to authenticate.'
+                )
+            raise RuntimeError(f"Claude CLI failed: {stderr}")
         return result.stdout.strip()
 
 
@@ -120,9 +146,16 @@ def summarize(transcript_text: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
         provider = cls()
 
         if not provider.is_available():
-            log.info("Provider %s not available, skipping", name)
-            if emit_fn:
-                emit_fn('status', message=f'Provider {name} not available, skipping...')
+            hint = provider.get_setup_hint()
+            if hint:
+                log.info("Provider %s not available: %s", name, hint)
+                if emit_fn:
+                    emit_fn('status', message=f'{hint}')
+                errors.append(f"{name}: {hint}")
+            else:
+                log.info("Provider %s not available, skipping", name)
+                if emit_fn:
+                    emit_fn('status', message=f'Provider {name} not available, skipping...')
             continue
 
         try:
