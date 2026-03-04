@@ -51,12 +51,15 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return
 
         try:
+            import os
+            env = {k: v for k, v in os.environ.items() if k != 'CLAUDECODE'}
             result = subprocess.run(
                 ['claude', '-p', prompt],
                 input=text,
                 capture_output=True,
                 text=True,
                 timeout=300,
+                env=env,
             )
         except subprocess.TimeoutExpired:
             self._respond(504, json.dumps({'error': 'claude CLI timed out'}))
