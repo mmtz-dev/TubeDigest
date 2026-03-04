@@ -1,9 +1,10 @@
 services:
   tubedigest:
     build: .
-    user: "${UID:-1000}:${GID:-1000}"
+    container_name: tubedigest
+    restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "${PORT:-5555}:5555"
     volumes:
       - ./Transcriptions:/app/Transcriptions
       - ./Summaries:/app/Summaries
@@ -12,6 +13,13 @@ services:
       - RUNNING_IN_DOCKER=true
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - XDG_CACHE_HOME=/home/.cache
+      - PORT=${PORT:-5555}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
 volumes:
   whisper-cache:

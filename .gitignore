@@ -26,7 +26,6 @@ Transcriptions/
 Summaries/
 
 # Docker
-.dockerignore
 
 # Usage tracking
 .usage.json

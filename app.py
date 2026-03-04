@@ -90,6 +90,11 @@ def job_status(job_id):
     return jsonify(status)
 
 
+@app.route('/api/health')
+def health():
+    return jsonify({'status': 'ok'})
+
+
 @app.route('/api/open-folder', methods=['POST'])
 def open_folder():
     if IN_DOCKER:
@@ -155,4 +160,5 @@ def open_summaries_folder():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    port = int(os.environ.get('PORT', 5555))
+    app.run(debug=True, host='0.0.0.0', port=port, threaded=True)
