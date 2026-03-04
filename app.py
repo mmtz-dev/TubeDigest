@@ -19,6 +19,7 @@ logging.basicConfig(
 )
 
 from src.jobs import JobManager
+from src.storage import BASE_DIR as TRANSCRIPTIONS_DIR
 from src.summary_storage import list_transcripts, SUMMARIES_DIR
 
 app = Flask(__name__)
@@ -92,15 +93,14 @@ def job_status(job_id):
 @app.route('/api/open-folder', methods=['POST'])
 def open_folder():
     if IN_DOCKER:
-        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': '/app/Transcriptions'}), 400
+        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': TRANSCRIPTIONS_DIR}), 400
 
-    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Transcriptions')
-    os.makedirs(folder, exist_ok=True)
+    os.makedirs(TRANSCRIPTIONS_DIR, exist_ok=True)
     try:
-        subprocess.Popen(['xdg-open', folder])
+        subprocess.Popen(['xdg-open', TRANSCRIPTIONS_DIR])
         return jsonify({'ok': True})
     except FileNotFoundError:
-        return jsonify({'error': 'xdg-open not available', 'path': folder}), 500
+        return jsonify({'error': 'xdg-open not available', 'path': TRANSCRIPTIONS_DIR}), 500
 
 
 @app.route('/api/transcripts')
@@ -130,7 +130,9 @@ def get_summary(rel_path):
     if '..' in rel_path or rel_path.startswith('/'):
         return jsonify({'error': 'Invalid path'}), 400
 
-    full_path = os.path.join(SUMMARIES_DIR, rel_path)
+    # Summary files use .md extension
+    md_path = os.path.splitext(rel_path)[0] + '.md'
+    full_path = os.path.join(SUMMARIES_DIR, md_path)
     if not os.path.isfile(full_path):
         return jsonify({'error': 'Summary not found'}), 404
 
@@ -142,7 +144,7 @@ def get_summary(rel_path):
 @app.route('/api/open-summaries-folder', methods=['POST'])
 def open_summaries_folder():
     if IN_DOCKER:
-        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': '/app/Summaries'}), 400
+        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': SUMMARIES_DIR}), 400
 
     os.makedirs(SUMMARIES_DIR, exist_ok=True)
     try:

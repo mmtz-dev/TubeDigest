@@ -5,7 +5,8 @@ import re
 from datetime import date
 
 
-BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Transcriptions')
+_DEFAULT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Transcriptions')
+BASE_DIR = os.environ.get('TRANSCRIPTIONS_DIR', _DEFAULT_DIR)
 
 
 def sanitize_filename(name: str) -> str:

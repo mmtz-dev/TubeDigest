@@ -4,8 +4,8 @@ import os
 from datetime import date
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRANSCRIPTIONS_DIR = os.path.join(_PROJECT_ROOT, 'Transcriptions')
-SUMMARIES_DIR = os.path.join(_PROJECT_ROOT, 'Summaries')
+TRANSCRIPTIONS_DIR = os.environ.get('TRANSCRIPTIONS_DIR', os.path.join(_PROJECT_ROOT, 'Transcriptions'))
+SUMMARIES_DIR = os.environ.get('SUMMARIES_DIR', os.path.join(_PROJECT_ROOT, 'Summaries'))
 
 
 def list_transcripts() -> list[dict]:
@@ -22,8 +22,9 @@ def list_transcripts() -> list[dict]:
             rel_path = os.path.relpath(full_path, TRANSCRIPTIONS_DIR)
             subfolder = os.path.dirname(rel_path) if os.sep in rel_path or '/' in rel_path else ''
 
-            # Check if summary exists at mirror path
-            summary_path = os.path.join(SUMMARIES_DIR, rel_path)
+            # Check if summary exists at mirror path (.md extension)
+            summary_rel = os.path.splitext(rel_path)[0] + '.md'
+            summary_path = os.path.join(SUMMARIES_DIR, summary_rel)
             has_summary = os.path.isfile(summary_path)
 
             results.append({
@@ -48,18 +49,18 @@ def read_transcript(rel_path: str) -> str:
 
 
 def save_summary(rel_path: str, summary_text: str, provider: str) -> str:
-    """Write summary to Summaries/{rel_path} with metadata header. Returns the file path."""
+    """Write summary to Summaries/{rel_path}.md with metadata header. Returns the file path."""
     today = date.today().isoformat()
-    separator = '\u2500' * 44
 
     header = (
-        f'Source:   {rel_path}\n'
-        f'Provider: {provider}\n'
-        f'Date:     {today}\n'
-        f'{separator}\n\n'
+        f'> **Source:** {rel_path}  \n'
+        f'> **Provider:** {provider}  \n'
+        f'> **Date:** {today}\n\n'
+        f'---\n\n'
     )
 
-    full_path = os.path.join(SUMMARIES_DIR, rel_path)
+    md_rel_path = os.path.splitext(rel_path)[0] + '.md'
+    full_path = os.path.join(SUMMARIES_DIR, md_rel_path)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     with open(full_path, 'w', encoding='utf-8') as f:
         f.write(header + summary_text + '\n')
