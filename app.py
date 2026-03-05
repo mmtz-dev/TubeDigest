@@ -106,9 +106,12 @@ def job_status(job_id):
 @app.route('/api/info')
 def app_info():
     cfg = get_transcription_config()
+    # Show host paths when running in Docker, otherwise show the actual paths
+    transcriptions_display = os.environ.get('HOST_TRANSCRIPTIONS_DIR', TRANSCRIPTIONS_DIR)
+    summaries_display = os.environ.get('HOST_SUMMARIES_DIR', SUMMARIES_DIR)
     return jsonify({
-        'transcriptions_dir': TRANSCRIPTIONS_DIR,
-        'summaries_dir': SUMMARIES_DIR,
+        'transcriptions_dir': transcriptions_display,
+        'summaries_dir': summaries_display,
         'yt_api_count': get_yt_api_count(),
         'yt_api_daily_limit': cfg['yt_api_daily_limit'],
     })
