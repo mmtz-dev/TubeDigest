@@ -9,7 +9,7 @@ from queue import Empty
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 
 from flask import Flask, Response, jsonify, render_template, request
 
@@ -21,6 +21,7 @@ logging.basicConfig(
 from src.jobs import JobManager
 from src.storage import BASE_DIR as TRANSCRIPTIONS_DIR
 from src.summary_storage import list_transcripts, SUMMARIES_DIR
+from src.config import get_transcription_config
 from src.usage_tracker import get_yt_api_count
 
 app = Flask(__name__)
@@ -100,6 +101,17 @@ def job_status(job_id):
     if status is None:
         return jsonify({'error': 'Job not found'}), 404
     return jsonify(status)
+
+
+@app.route('/api/info')
+def app_info():
+    cfg = get_transcription_config()
+    return jsonify({
+        'transcriptions_dir': TRANSCRIPTIONS_DIR,
+        'summaries_dir': SUMMARIES_DIR,
+        'yt_api_count': get_yt_api_count(),
+        'yt_api_daily_limit': cfg['yt_api_daily_limit'],
+    })
 
 
 @app.route('/api/health')

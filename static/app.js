@@ -7,6 +7,20 @@ const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
 const logPanel = document.getElementById('log-panel');
 
+async function loadAppInfo() {
+    try {
+        const res = await fetch('/api/info');
+        const info = await res.json();
+        log(`Transcriptions directory: ${info.transcriptions_dir}`);
+        log(`Summaries directory: ${info.summaries_dir}`);
+        log(`Today's YT API usage: ${info.yt_api_count} / ${info.yt_api_daily_limit}`);
+    } catch (err) {
+        log('Could not load app info.', 'error');
+    }
+}
+
+loadAppInfo();
+
 function log(message, type = 'status') {
     const entry = document.createElement('div');
     entry.className = `log-entry ${type}`;
