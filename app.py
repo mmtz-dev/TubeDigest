@@ -21,11 +21,23 @@ logging.basicConfig(
 from src.jobs import JobManager
 from src.storage import BASE_DIR as TRANSCRIPTIONS_DIR
 from src.summary_storage import list_transcripts, SUMMARIES_DIR
+from src.usage_tracker import get_yt_api_count
 
 app = Flask(__name__)
 job_manager = JobManager()
 
 IN_DOCKER = os.environ.get('RUNNING_IN_DOCKER', '').lower() == 'true'
+
+log = logging.getLogger(__name__)
+
+
+def log_startup_info():
+    log.info("Transcriptions directory: %s", TRANSCRIPTIONS_DIR)
+    log.info("Summaries directory:      %s", SUMMARIES_DIR)
+    log.info("Today's YT API transcript count: %d", get_yt_api_count())
+
+
+log_startup_info()
 
 
 def format_sse(data: dict) -> str:
