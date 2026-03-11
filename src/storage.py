@@ -5,8 +5,10 @@ import re
 from datetime import date
 
 
-_DEFAULT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Transcriptions')
-BASE_DIR = os.environ.get('TRANSCRIPTIONS_DIR', _DEFAULT_DIR)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TRANSCRIPTIONS_DIR = os.environ.get('TRANSCRIPTIONS_DIR', os.path.join(_PROJECT_ROOT, 'Transcriptions'))
+SUMMARIES_DIR = os.environ.get('SUMMARIES_DIR', os.path.join(_PROJECT_ROOT, 'Summaries'))
+BASE_DIR = TRANSCRIPTIONS_DIR  # backward compat alias
 
 
 def sanitize_filename(name: str) -> str:

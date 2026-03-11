@@ -3,9 +3,7 @@
 
 import argparse
 import os
-import random
 import sys
-import time
 
 from dotenv import load_dotenv
 
@@ -83,129 +81,6 @@ def log(quiet: bool, message: str) -> None:
         print(message)
 
 
-def derive_summary_rel_path(transcript_rel: str) -> str:
-    """Derive the summary .md relative path from a transcript .txt relative path."""
-    return os.path.splitext(transcript_rel)[0] + '.md'
-
-
-def process_single_video(
-    video_id: str,
-    playlist_name: str | None,
-    index: int,
-    total: int,
-    args: argparse.Namespace,
-    transcriptions_dir: str,
-    fetch_video_metadata,
-    fetch_transcript_auto,
-    format_transcript_content,
-    save_transcript,
-    get_summarization_config,
-    summarize,
-    save_summary,
-    load_manifest,
-    save_manifest,
-    check_status,
-    update_entry,
-    manifest: dict,
-) -> str:
-    """Fetch transcript (and optionally summary) for one video. Returns outcome: 'ok', 'skip', 'error'."""
-    quiet = args.quiet
-    include_timestamps = not args.no_timestamps
-    prefix = f'[{index}/{total}]'
-
-    status = 'needs_transcript' if args.force else check_status(
-        manifest, video_id, transcriptions_dir, args._summaries_dir
-    )
-
-    if status == 'skip':
-        entry = manifest[video_id]
-        log(quiet, f'{prefix} Skipped (already processed): "{entry["title"]}"')
-        return 'skip'
-
-    # -- Transcript phase --
-    if status == 'needs_transcript':
-        try:
-            metadata = fetch_video_metadata(video_id)
-            title = metadata['title']
-            log(quiet, f'{prefix} Fetching: "{title}"...')
-
-            transcript, _method = fetch_transcript_auto(
-                video_id,
-                metadata.get('duration'),
-                include_timestamps=include_timestamps,
-            )
-            content = format_transcript_content(title, video_id, transcript, include_timestamps)
-            filepath = save_transcript(title, video_id, content, playlist_name)
-            transcript_rel = os.path.relpath(filepath, transcriptions_dir)
-
-            update_entry(manifest, video_id, title, transcript_rel, None)
-            save_manifest(transcriptions_dir, manifest)
-
-        except Exception as exc:
-            title = video_id
-            log(quiet, f'{prefix} ERROR: "{title}" — {exc}')
-            return 'error'
-    else:
-        # needs_summary — transcript already exists
-        title = manifest[video_id]['title']
-        transcript_rel = manifest[video_id]['transcript']
-
-    # -- Summary phase --
-    if args.summarize:
-        log(quiet, f'{prefix} Summarizing: "{title}"...')
-        try:
-            transcript_full_path = os.path.join(transcriptions_dir, transcript_rel)
-            with open(transcript_full_path, 'r', encoding='utf-8') as f:
-                transcript_text = f.read()
-
-            cfg = get_summarization_config()
-            summary_text, provider = summarize(transcript_text, cfg)
-
-            save_summary(transcript_rel, summary_text, provider)
-            summary_rel = derive_summary_rel_path(transcript_rel)
-
-            update_entry(manifest, video_id, title, transcript_rel, summary_rel)
-            save_manifest(transcriptions_dir, manifest)
-
-        except Exception as exc:
-            log(quiet, f'{prefix} ERROR summarizing "{title}" — {exc}')
-            return 'error'
-
-    log(quiet, f'{prefix} Done: "{title}"')
-    return 'ok'
-
-
-def expand_playlists(
-    raw_urls: list[str],
-    quiet: bool,
-    extract_video_id,
-    is_playlist_url,
-    extract_playlist_videos,
-) -> list[tuple[str, str | None]]:
-    """Expand raw URLs into (video_id, playlist_name | None) tuples."""
-    expanded: list[tuple[str, str | None]] = []
-
-    for url in raw_urls:
-        if is_playlist_url(url):
-            log(quiet, f'Expanding playlist: {url}')
-            try:
-                playlist = extract_playlist_videos(url)
-                playlist_name = playlist['title']
-                for video in playlist['videos']:
-                    expanded.append((video['video_id'], playlist_name))
-                log(quiet, f'  Found {len(playlist["videos"])} videos in "{playlist_name}"')
-            except Exception as exc:
-                print(f'ERROR expanding playlist {url}: {exc}', file=sys.stderr)
-        else:
-            video_id = extract_video_id(url)
-            if video_id:
-                expanded.append((video_id, None))
-            else:
-                print(f'WARNING: Could not extract video ID from: {url}', file=sys.stderr)
-
-    return expanded
-
-
 def main() -> None:
     _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
     load_dotenv(_env_path)
@@ -218,31 +93,31 @@ def main() -> None:
         os.environ['SUMMARIES_DIR'] = os.path.abspath(args.summaries_dir)
 
     # Late imports so the env vars set above take effect in module-level constants
-    from src.fetcher import extract_video_id, fetch_video_metadata, fetch_transcript_auto
-    from src.playlist import is_playlist_url, extract_playlist_videos
-    from src.storage import format_transcript_content, save_transcript, BASE_DIR
-    from src.config import get_summarization_config
-    from src.summarizer import summarize
-    from src.summary_storage import save_summary, SUMMARIES_DIR
-    from src.manifest import load_manifest, save_manifest, check_status, update_entry
+    from src.manifest import load_manifest, save_manifest
+    from src.pipeline import expand_urls, process_video, process_summary, apply_rate_limit
+    from src.storage import TRANSCRIPTIONS_DIR, SUMMARIES_DIR
 
-    transcriptions_dir: str = BASE_DIR
-    summaries_dir: str = SUMMARIES_DIR
-    # Attach resolved dirs to args so helpers can access them without extra params
-    args._summaries_dir = summaries_dir
+    transcriptions_dir = TRANSCRIPTIONS_DIR
+    summaries_dir = SUMMARIES_DIR
 
     raw_urls = collect_urls(args)
     if not raw_urls:
         print('Error: no URLs provided. Pass URLs as arguments, --file, or via stdin.', file=sys.stderr)
         sys.exit(1)
 
-    videos = expand_playlists(
-        raw_urls,
-        args.quiet,
-        extract_video_id,
-        is_playlist_url,
-        extract_playlist_videos,
-    )
+    quiet = args.quiet
+
+    def emit(event_type, **data):
+        if event_type == 'error':
+            print(f'ERROR: {data.get("message", "")}', file=sys.stderr)
+        elif event_type == 'warning':
+            print(f'WARNING: {data.get("message", "")}', file=sys.stderr)
+        elif not quiet:
+            msg = data.get('message', '')
+            if msg:
+                print(msg)
+
+    videos = expand_urls(raw_urls, emit_fn=emit)
 
     if not videos:
         print('Error: no valid video IDs found.', file=sys.stderr)
@@ -253,44 +128,47 @@ def main() -> None:
 
     total = len(videos)
     succeeded = skipped = failed = 0
+    include_timestamps = not args.no_timestamps
 
-    for i, (video_id, playlist_name) in enumerate(videos, start=1):
-        outcome = process_single_video(
-            video_id=video_id,
-            playlist_name=playlist_name,
-            index=i,
-            total=total,
-            args=args,
-            transcriptions_dir=transcriptions_dir,
-            fetch_video_metadata=fetch_video_metadata,
-            fetch_transcript_auto=fetch_transcript_auto,
-            format_transcript_content=format_transcript_content,
-            save_transcript=save_transcript,
-            get_summarization_config=get_summarization_config,
-            summarize=summarize,
-            save_summary=save_summary,
-            load_manifest=load_manifest,
-            save_manifest=save_manifest,
-            check_status=check_status,
-            update_entry=update_entry,
-            manifest=manifest,
+    for i, target in enumerate(videos, start=1):
+        prefix = f'[{i}/{total}]'
+
+        result = process_video(
+            target.video_id, target.playlist_name,
+            manifest, transcriptions_dir, summaries_dir,
+            include_timestamps=include_timestamps,
+            force=args.force,
+            emit_fn=emit,
         )
 
-        if outcome == 'ok':
-            succeeded += 1
-        elif outcome == 'skip':
+        if result.outcome == 'skip':
+            log(quiet, f'{prefix} Skipped (already processed): "{result.title}"')
             skipped += 1
-        else:
+        elif result.outcome == 'error':
+            log(quiet, f'{prefix} ERROR: "{result.title}" — {result.error}')
             failed += 1
+        else:
+            save_manifest(transcriptions_dir, manifest)
 
-        # Rate limiting between videos in a batch
-        if i < total:
-            if i % 10 == 0:
-                time.sleep(15)
-            else:
-                time.sleep(random.uniform(2, 5))
+            if args.summarize:
+                log(quiet, f'{prefix} Summarizing: "{result.title}"...')
+                sr = process_summary(
+                    result.transcript_rel, manifest,
+                    transcriptions_dir, summaries_dir,
+                    emit_fn=emit,
+                )
+                if sr.outcome == 'error':
+                    log(quiet, f'{prefix} ERROR summarizing "{result.title}" — {sr.error}')
+                    failed += 1
+                    continue
+                save_manifest(transcriptions_dir, manifest)
 
-    log(args.quiet, f'Done! {succeeded} succeeded, {skipped} skipped, {failed} failed')
+            log(quiet, f'{prefix} Done: "{result.title}"')
+            succeeded += 1
+
+        apply_rate_limit(i, total, emit_fn=emit)
+
+    log(quiet, f'Done! {succeeded} succeeded, {skipped} skipped, {failed} failed')
 
     if failed:
         sys.exit(1)

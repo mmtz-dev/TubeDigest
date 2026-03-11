@@ -1,20 +1,15 @@
 """Background job manager with threading and queue-based progress reporting."""
 
-import json
 import logging
-import os
-import random
 import threading
-import time
 import uuid
 from queue import Queue
 
 log = logging.getLogger(__name__)
 
-from src.fetcher import extract_video_id, fetch_video_metadata, fetch_transcript_auto
-from src.manifest import load_manifest, save_manifest, check_status, update_entry
-from src.playlist import is_playlist_url, extract_playlist_videos
-from src.storage import format_transcript_content, save_transcript, BASE_DIR
+from src.manifest import load_manifest, save_manifest
+from src.pipeline import expand_urls, process_video, process_summary, apply_rate_limit
+from src.storage import BASE_DIR
 from src.summary_storage import SUMMARIES_DIR
 
 
@@ -66,7 +61,10 @@ class JobManager:
     def _process_job(self, job_id: str, urls: list[str], include_timestamps: bool):
         job = self._jobs[job_id]
         try:
-            videos = self._resolve_videos(job_id, urls)
+            def emit(event_type, **data):
+                self._emit(job_id, event_type, **data)
+
+            videos = expand_urls(urls, emit_fn=emit)
             total = len(videos)
             job['total'] = total
             self._emit(job_id, 'total', count=total)
@@ -76,79 +74,47 @@ class JobManager:
                 self._finish_job(job_id)
                 return
 
-            is_batch = total > 1
-
             with self._manifest_lock:
                 manifest = load_manifest(BASE_DIR)
 
-            for i, video in enumerate(videos, 1):
-                video_id = video['video_id']
-                playlist_name = video.get('playlist_name')
-
-                # Duplicate check
-                status = check_status(manifest, video_id, BASE_DIR, SUMMARIES_DIR)
-                if status == 'skip':
-                    entry = manifest[video_id]
-                    log.info("Skipping %s — already has transcript and summary: \"%s\"", video_id, entry['title'])
-                    job['succeeded'] += 1
-                    self._emit(
-                        job_id, 'success',
-                        current=i, title=entry['title'],
-                        skipped=True,
-                        message=f'Already processed: "{entry["title"]}"',
-                    )
-                    continue
-
+            for i, target in enumerate(videos, 1):
                 self._emit(
                     job_id, 'progress',
                     current=i, total=total,
-                    message=f'Processing video {i}/{total}: {video_id}',
+                    message=f'Processing video {i}/{total}: {target.video_id}',
                 )
-                try:
-                    metadata = fetch_video_metadata(video_id)
-                    title = metadata['title']
 
-                    duration = metadata.get('duration')
-
-                    def video_emit(event_type, **data):
-                        self._emit(job_id, event_type, **data)
-
-                    self._emit(
-                        job_id, 'status',
-                        message=f'Fetching transcript for: {title}',
+                with self._manifest_lock:
+                    result = process_video(
+                        target.video_id, target.playlist_name,
+                        manifest, BASE_DIR, SUMMARIES_DIR,
+                        include_timestamps=include_timestamps,
+                        emit_fn=emit,
                     )
-                    transcript, method_used = fetch_transcript_auto(
-                        video_id, duration, include_timestamps, emit_fn=video_emit,
-                    )
-                    content = format_transcript_content(title, video_id, transcript, include_timestamps)
-                    filepath = save_transcript(title, video_id, content, playlist_name)
-
-                    transcript_rel = os.path.relpath(filepath, BASE_DIR)
-                    with self._manifest_lock:
-                        update_entry(manifest, video_id, title, transcript_rel, None)
+                    if result.outcome != 'error':
                         save_manifest(BASE_DIR, manifest)
 
+                if result.outcome == 'skip':
+                    log.info("Skipping %s — already has transcript and summary: \"%s\"", target.video_id, result.title)
                     job['succeeded'] += 1
-                    self._emit(job_id, 'success', current=i, title=title)
-
-                except Exception as e:
+                    self._emit(
+                        job_id, 'success',
+                        current=i, title=result.title,
+                        skipped=True,
+                        message=f'Already processed: "{result.title}"',
+                    )
+                elif result.outcome == 'ok':
+                    job['succeeded'] += 1
+                    self._emit(job_id, 'success', current=i, title=result.title)
+                else:
                     job['failed'] += 1
                     self._emit(
                         job_id, 'error',
-                        current=i, video_id=video_id,
-                        message=str(e),
+                        current=i, video_id=target.video_id,
+                        message=result.error,
                     )
 
-                # Rate limiting for batches
-                if is_batch and i < total:
-                    if i % 10 == 0:
-                        delay = 15
-                        self._emit(job_id, 'status', message=f'Pausing {delay}s to avoid rate limits...')
-                        time.sleep(delay)
-                    else:
-                        delay = random.uniform(2, 5)
-                        self._emit(job_id, 'status', message=f'Waiting {delay:.1f}s before next request...')
-                        time.sleep(delay)
+                apply_rate_limit(i, total, emit_fn=emit)
 
         except Exception as e:
             self._emit(job_id, 'error', current=0, video_id='', message=f'Job failed: {e}')
@@ -186,10 +152,6 @@ class JobManager:
         return job_id
 
     def _process_summarization_job(self, job_id: str, paths: list[str]):
-        from src.config import get_summarization_config
-        from src.summarizer import summarize
-        from src.summary_storage import read_transcript, save_summary
-
         job = self._jobs[job_id]
         try:
             total = len(paths)
@@ -201,17 +163,29 @@ class JobManager:
                 self._finish_job(job_id)
                 return
 
-            cfg = get_summarization_config()
+            def emit(event_type, **data):
+                self._emit(job_id, event_type, **data)
 
             with self._manifest_lock:
                 manifest = load_manifest(BASE_DIR)
 
             for i, rel_path in enumerate(paths, 1):
-                # Check if summary already exists
-                summary_rel = os.path.splitext(rel_path)[0] + '.md'
-                summary_path = os.path.join(SUMMARIES_DIR, summary_rel)
-                if os.path.isfile(summary_path):
-                    log.info("Skipping summarization — summary already exists: %s", summary_rel)
+                self._emit(
+                    job_id, 'progress',
+                    current=i, total=total,
+                    message=f'Summarizing {i}/{total}: {rel_path}',
+                )
+
+                with self._manifest_lock:
+                    result = process_summary(
+                        rel_path, manifest, BASE_DIR, SUMMARIES_DIR,
+                        emit_fn=emit,
+                    )
+                    if result.outcome != 'error':
+                        save_manifest(BASE_DIR, manifest)
+
+                if result.outcome == 'skip':
+                    log.info("Skipping summarization — summary already exists: %s", result.summary_rel)
                     job['succeeded'] += 1
                     self._emit(
                         job_id, 'success',
@@ -219,98 +193,17 @@ class JobManager:
                         skipped=True,
                         message=f'Already summarized: {rel_path}',
                     )
-                    continue
-
-                self._emit(
-                    job_id, 'progress',
-                    current=i, total=total,
-                    message=f'Summarizing {i}/{total}: {rel_path}',
-                )
-                try:
-                    transcript_text = read_transcript(rel_path)
-
-                    def job_emit(event_type, **data):
-                        self._emit(job_id, event_type, **data)
-
-                    summary_text, provider_name = summarize(transcript_text, cfg, emit_fn=job_emit)
-                    save_summary(rel_path, summary_text, provider_name)
-
-                    summary_rel = os.path.splitext(rel_path)[0] + '.md'
-                    # Update manifest — find video_id from existing entry or parse from transcript
-                    video_id = self._find_video_id_for_transcript(manifest, rel_path, transcript_text)
-                    if video_id:
-                        with self._manifest_lock:
-                            entry = manifest.get(video_id, {})
-                            title = entry.get('title', os.path.basename(rel_path))
-                            update_entry(manifest, video_id, title, rel_path, summary_rel)
-                            save_manifest(BASE_DIR, manifest)
-
+                elif result.outcome == 'ok':
                     job['succeeded'] += 1
                     self._emit(job_id, 'success', current=i, title=rel_path)
-                except Exception as e:
+                else:
                     job['failed'] += 1
                     self._emit(
                         job_id, 'error',
                         current=i, video_id='',
-                        message=f'{rel_path}: {e}',
+                        message=f'{rel_path}: {result.error}',
                     )
         except Exception as e:
             self._emit(job_id, 'error', current=0, video_id='', message=f'Job failed: {e}')
 
-    @staticmethod
-    def _find_video_id_for_transcript(manifest: dict, rel_path: str, transcript_text: str) -> str | None:
-        """Find the video ID for a transcript, checking manifest first then parsing the file."""
-        # Check manifest for matching transcript path
-        for vid, entry in manifest.items():
-            if entry.get('transcript') == rel_path:
-                return vid
-
-        # Parse "Video ID: xxx" from transcript content
-        for line in transcript_text.splitlines()[:5]:
-            if line.startswith('Video ID:'):
-                return line.split(':', 1)[1].strip()
-
-        return None
-
         self._finish_job(job_id)
-
-    def _resolve_videos(self, job_id: str, urls: list[str]) -> list[dict]:
-        """Expand URLs into a flat list of {video_id, playlist_name?} dicts."""
-        videos = []
-        for url in urls:
-            url = url.strip()
-            if not url:
-                continue
-
-            if is_playlist_url(url):
-                self._emit(job_id, 'status', message=f'Extracting playlist: {url}')
-                try:
-                    playlist_info = extract_playlist_videos(url)
-                    playlist_name = playlist_info['title']
-                    for v in playlist_info['videos']:
-                        videos.append({
-                            'video_id': v['video_id'],
-                            'playlist_name': playlist_name,
-                        })
-                    self._emit(
-                        job_id, 'status',
-                        message=f'Found {len(playlist_info["videos"])} videos in playlist "{playlist_name}"',
-                    )
-                except Exception as e:
-                    self._emit(
-                        job_id, 'error',
-                        current=0, video_id='',
-                        message=f'Failed to extract playlist {url}: {e}',
-                    )
-            else:
-                video_id = extract_video_id(url)
-                if video_id:
-                    videos.append({'video_id': video_id})
-                else:
-                    self._emit(
-                        job_id, 'error',
-                        current=0, video_id='',
-                        message=f'Could not extract video ID from: {url}',
-                    )
-
-        return videos

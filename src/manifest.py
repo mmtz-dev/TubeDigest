@@ -74,3 +74,16 @@ def update_entry(
     if summary_rel is not None:
         entry['summary'] = summary_rel
     manifest[video_id] = entry
+
+
+def find_video_id_for_transcript(manifest: dict, rel_path: str, transcript_text: str) -> str | None:
+    """Find the video ID for a transcript, checking manifest first then parsing the file."""
+    for vid, entry in manifest.items():
+        if entry.get('transcript') == rel_path:
+            return vid
+
+    for line in transcript_text.splitlines()[:5]:
+        if line.startswith('Video ID:'):
+            return line.split(':', 1)[1].strip()
+
+    return None

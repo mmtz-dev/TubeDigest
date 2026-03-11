@@ -3,9 +3,12 @@
 import os
 from datetime import date
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRANSCRIPTIONS_DIR = os.environ.get('TRANSCRIPTIONS_DIR', os.path.join(_PROJECT_ROOT, 'Transcriptions'))
-SUMMARIES_DIR = os.environ.get('SUMMARIES_DIR', os.path.join(_PROJECT_ROOT, 'Summaries'))
+from src.storage import TRANSCRIPTIONS_DIR, SUMMARIES_DIR
+
+
+def derive_summary_rel_path(transcript_rel: str) -> str:
+    """Derive the summary .md relative path from a transcript .txt relative path."""
+    return os.path.splitext(transcript_rel)[0] + '.md'
 
 
 def list_transcripts() -> list[dict]:
@@ -23,8 +26,7 @@ def list_transcripts() -> list[dict]:
             subfolder = os.path.dirname(rel_path) if os.sep in rel_path or '/' in rel_path else ''
 
             # Check if summary exists at mirror path (.md extension)
-            summary_rel = os.path.splitext(rel_path)[0] + '.md'
-            summary_path = os.path.join(SUMMARIES_DIR, summary_rel)
+            summary_path = os.path.join(SUMMARIES_DIR, derive_summary_rel_path(rel_path))
             has_summary = os.path.isfile(summary_path)
 
             results.append({
@@ -59,8 +61,7 @@ def save_summary(rel_path: str, summary_text: str, provider: str) -> str:
         f'---\n\n'
     )
 
-    md_rel_path = os.path.splitext(rel_path)[0] + '.md'
-    full_path = os.path.join(SUMMARIES_DIR, md_rel_path)
+    full_path = os.path.join(SUMMARIES_DIR, derive_summary_rel_path(rel_path))
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     with open(full_path, 'w', encoding='utf-8') as f:
         f.write(header + summary_text + '\n')

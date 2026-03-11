@@ -175,9 +175,10 @@ Both Docker and local modes respect this variable.
 ├── app.py                 # Flask routes and SSE streaming
 ├── cli.py                 # Command-line interface
 ├── src/
+│   ├── pipeline.py        # Shared processing pipeline (CLI + web)
 │   ├── fetcher.py         # Video metadata and transcript fetching
 │   ├── playlist.py        # Playlist detection and extraction
-│   ├── storage.py         # Transcript formatting and file saving
+│   ├── storage.py         # Transcript formatting, file saving, directory constants
 │   ├── jobs.py            # Background job manager (web only)
 │   ├── manifest.py        # Duplicate detection manifest
 │   ├── summarizer.py      # AI summarization provider abstraction

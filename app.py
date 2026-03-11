@@ -19,8 +19,8 @@ logging.basicConfig(
 )
 
 from src.jobs import JobManager
-from src.storage import BASE_DIR as TRANSCRIPTIONS_DIR
-from src.summary_storage import list_transcripts, SUMMARIES_DIR
+from src.storage import TRANSCRIPTIONS_DIR, SUMMARIES_DIR
+from src.summary_storage import list_transcripts, derive_summary_rel_path
 from src.config import get_transcription_config
 from src.usage_tracker import get_yt_api_count
 
@@ -163,8 +163,7 @@ def get_summary(rel_path):
         return jsonify({'error': 'Invalid path'}), 400
 
     # Summary files use .md extension
-    md_path = os.path.splitext(rel_path)[0] + '.md'
-    full_path = os.path.join(SUMMARIES_DIR, md_path)
+    full_path = os.path.join(SUMMARIES_DIR, derive_summary_rel_path(rel_path))
     if not os.path.isfile(full_path):
         return jsonify({'error': 'Summary not found'}), 404
 
