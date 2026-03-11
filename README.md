@@ -1,6 +1,6 @@
 # TubeDigest
 
-A local web app that downloads YouTube transcripts and summarizes them with AI. Supports individual videos, Shorts, and full playlists.
+A local tool that downloads YouTube transcripts and summarizes them with AI. Supports individual videos, Shorts, and full playlists. Available as a **web app** or **CLI**.
 
 ## Quick Start (macOS with Docker)
 
@@ -32,6 +32,56 @@ python app.py
 
 Requires Python 3.12+ and FFmpeg (for Whisper fallback).
 
+## CLI Usage
+
+The CLI lets you fetch transcripts and summaries from the command line without starting the web server.
+
+```bash
+source .venv/bin/activate
+
+# Transcribe a single video
+python3 cli.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+# Transcribe + summarize
+python3 cli.py "https://youtu.be/dQw4w9WgXcQ" --summarize
+
+# Multiple videos
+python3 cli.py URL1 URL2 URL3 -s
+
+# Read URLs from a file (one per line, # comments ignored)
+python3 cli.py --file urls.txt --summarize
+
+# Pipe URLs from stdin
+cat urls.txt | python3 cli.py -s
+
+# Custom output directory
+python3 cli.py URL1 -s -o ./MyTranscripts --summaries-dir ./MySummaries
+
+# Force reprocess (ignore duplicates)
+python3 cli.py URL1 --force
+```
+
+### CLI Options
+
+| Flag | Short | Description |
+|---|---|---|
+| `--summarize` | `-s` | Generate AI summaries after transcription |
+| `--file FILE` | `-f` | Text file with one URL per line |
+| `--output DIR` | `-o` | Output directory for transcripts |
+| `--summaries-dir DIR` | | Output directory for summaries |
+| `--force` | | Reprocess even if already done |
+| `--no-timestamps` | | Omit timestamps from transcripts |
+| `--quiet` | `-q` | Suppress progress output |
+
+### Duplicate Detection
+
+The CLI tracks processed videos in a `.processed.json` manifest file inside the transcripts directory. On each run it checks:
+
+- **Video already processed, files exist** — skipped
+- **Transcript exists but summary deleted** — re-summarizes only
+- **Transcript deleted** — re-fetches transcript and re-summarizes
+- **`--force` flag** — reprocesses everything regardless
+
 ## Features
 
 - **Transcript downloading** — Fetches captions from YouTube videos, Shorts, and playlists
@@ -39,7 +89,8 @@ Requires Python 3.12+ and FFmpeg (for Whisper fallback).
 - **AI summarization** — Summarize transcripts using Gemini, Ollama, or Claude CLI
 - **Real-time progress** — Server-Sent Events stream status updates to the browser
 - **Batch processing** — Process multiple videos or entire playlists with rate limiting
-- **Dark-themed UI** — Single-page app, no framework dependencies
+- **CLI mode** — Scriptable command-line interface with duplicate detection
+- **Dark-themed UI** — Single-page web app, no framework dependencies
 
 ## Configuration
 
@@ -122,11 +173,13 @@ Both Docker and local modes respect this variable.
 
 ```
 ├── app.py                 # Flask routes and SSE streaming
+├── cli.py                 # Command-line interface
 ├── src/
 │   ├── fetcher.py         # Video metadata and transcript fetching
 │   ├── playlist.py        # Playlist detection and extraction
 │   ├── storage.py         # Transcript formatting and file saving
-│   ├── jobs.py            # Background job manager
+│   ├── jobs.py            # Background job manager (web only)
+│   ├── manifest.py        # Duplicate detection manifest
 │   ├── summarizer.py      # AI summarization provider abstraction
 │   ├── summary_storage.py # Summary file management
 │   ├── config.py          # YAML config loading

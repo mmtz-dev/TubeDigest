@@ -1,15 +1,21 @@
 """Background job manager with threading and queue-based progress reporting."""
 
 import json
+import logging
+import os
 import random
 import threading
 import time
 import uuid
 from queue import Queue
 
+log = logging.getLogger(__name__)
+
 from src.fetcher import extract_video_id, fetch_video_metadata, fetch_transcript_auto
+from src.manifest import load_manifest, save_manifest, check_status, update_entry
 from src.playlist import is_playlist_url, extract_playlist_videos
-from src.storage import format_transcript_content, save_transcript
+from src.storage import format_transcript_content, save_transcript, BASE_DIR
+from src.summary_storage import SUMMARIES_DIR
 
 
 class JobManager:
@@ -17,6 +23,7 @@ class JobManager:
 
     def __init__(self):
         self._jobs: dict[str, dict] = {}
+        self._manifest_lock = threading.Lock()
 
     def create_job(self, urls: list[str], include_timestamps: bool = True) -> str:
         """Create a new job and start processing in a background thread."""
@@ -71,9 +78,27 @@ class JobManager:
 
             is_batch = total > 1
 
+            with self._manifest_lock:
+                manifest = load_manifest(BASE_DIR)
+
             for i, video in enumerate(videos, 1):
                 video_id = video['video_id']
                 playlist_name = video.get('playlist_name')
+
+                # Duplicate check
+                status = check_status(manifest, video_id, BASE_DIR, SUMMARIES_DIR)
+                if status == 'skip':
+                    entry = manifest[video_id]
+                    log.info("Skipping %s — already has transcript and summary: \"%s\"", video_id, entry['title'])
+                    job['succeeded'] += 1
+                    self._emit(
+                        job_id, 'success',
+                        current=i, title=entry['title'],
+                        skipped=True,
+                        message=f'Already processed: "{entry["title"]}"',
+                    )
+                    continue
+
                 self._emit(
                     job_id, 'progress',
                     current=i, total=total,
@@ -96,7 +121,12 @@ class JobManager:
                         video_id, duration, include_timestamps, emit_fn=video_emit,
                     )
                     content = format_transcript_content(title, video_id, transcript, include_timestamps)
-                    save_transcript(title, video_id, content, playlist_name)
+                    filepath = save_transcript(title, video_id, content, playlist_name)
+
+                    transcript_rel = os.path.relpath(filepath, BASE_DIR)
+                    with self._manifest_lock:
+                        update_entry(manifest, video_id, title, transcript_rel, None)
+                        save_manifest(BASE_DIR, manifest)
 
                     job['succeeded'] += 1
                     self._emit(job_id, 'success', current=i, title=title)
@@ -173,7 +203,24 @@ class JobManager:
 
             cfg = get_summarization_config()
 
+            with self._manifest_lock:
+                manifest = load_manifest(BASE_DIR)
+
             for i, rel_path in enumerate(paths, 1):
+                # Check if summary already exists
+                summary_rel = os.path.splitext(rel_path)[0] + '.md'
+                summary_path = os.path.join(SUMMARIES_DIR, summary_rel)
+                if os.path.isfile(summary_path):
+                    log.info("Skipping summarization — summary already exists: %s", summary_rel)
+                    job['succeeded'] += 1
+                    self._emit(
+                        job_id, 'success',
+                        current=i, title=rel_path,
+                        skipped=True,
+                        message=f'Already summarized: {rel_path}',
+                    )
+                    continue
+
                 self._emit(
                     job_id, 'progress',
                     current=i, total=total,
@@ -188,6 +235,16 @@ class JobManager:
                     summary_text, provider_name = summarize(transcript_text, cfg, emit_fn=job_emit)
                     save_summary(rel_path, summary_text, provider_name)
 
+                    summary_rel = os.path.splitext(rel_path)[0] + '.md'
+                    # Update manifest — find video_id from existing entry or parse from transcript
+                    video_id = self._find_video_id_for_transcript(manifest, rel_path, transcript_text)
+                    if video_id:
+                        with self._manifest_lock:
+                            entry = manifest.get(video_id, {})
+                            title = entry.get('title', os.path.basename(rel_path))
+                            update_entry(manifest, video_id, title, rel_path, summary_rel)
+                            save_manifest(BASE_DIR, manifest)
+
                     job['succeeded'] += 1
                     self._emit(job_id, 'success', current=i, title=rel_path)
                 except Exception as e:
@@ -199,6 +256,21 @@ class JobManager:
                     )
         except Exception as e:
             self._emit(job_id, 'error', current=0, video_id='', message=f'Job failed: {e}')
+
+    @staticmethod
+    def _find_video_id_for_transcript(manifest: dict, rel_path: str, transcript_text: str) -> str | None:
+        """Find the video ID for a transcript, checking manifest first then parsing the file."""
+        # Check manifest for matching transcript path
+        for vid, entry in manifest.items():
+            if entry.get('transcript') == rel_path:
+                return vid
+
+        # Parse "Video ID: xxx" from transcript content
+        for line in transcript_text.splitlines()[:5]:
+            if line.startswith('Video ID:'):
+                return line.split(':', 1)[1].strip()
+
+        return None
 
         self._finish_job(job_id)
 

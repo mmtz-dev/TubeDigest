@@ -96,7 +96,11 @@ function listenToProgress(jobId) {
                 break;
 
             case 'success':
-                log(`Saved: ${msg.title}`, 'success');
+                if (msg.skipped) {
+                    log(`Skipped (already processed): ${msg.title}`, 'status');
+                } else {
+                    log(`Saved: ${msg.title}`, 'success');
+                }
                 break;
 
             case 'warning':
@@ -308,7 +312,11 @@ function listenToSummaryProgress(jobId) {
                 break;
 
             case 'success':
-                summaryLog(`Summarized: ${msg.title}`, 'success');
+                if (msg.skipped) {
+                    summaryLog(`Skipped (already summarized): ${msg.title}`, 'status');
+                } else {
+                    summaryLog(`Summarized: ${msg.title}`, 'success');
+                }
                 break;
 
             case 'warning':
