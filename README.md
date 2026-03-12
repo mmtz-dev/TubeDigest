@@ -86,7 +86,7 @@ The CLI tracks processed videos in a `.processed.json` manifest file inside the 
 
 - **Transcript downloading** — Fetches captions from YouTube videos, Shorts, and playlists
 - **Multi-method fallback** — youtube-transcript-api → yt-dlp subtitles → local Whisper transcription
-- **AI summarization** — Summarize transcripts using Gemini, Ollama, or Claude CLI
+- **AI summarization** — Summarize transcripts using Claude CLI, Claude Proxy, Gemini, or Ollama
 - **Real-time progress** — Server-Sent Events stream status updates to the browser
 - **Batch processing** — Process multiple videos or entire playlists with rate limiting
 - **CLI mode** — Scriptable command-line interface with duplicate detection
@@ -100,6 +100,8 @@ The CLI tracks processed videos in a `.processed.json` manifest file inside the 
 |---|---|---|
 | `PORT` | `5555` | Port the app runs on |
 | `GEMINI_API_KEY` | — | API key for Gemini summarization |
+| `CLAUDE_PROXY_URL` | `http://host.docker.internal:9100` | URL of the Claude proxy (for Docker) |
+| `OLLAMA_URL` | `http://localhost:11434` | URL of the Ollama server |
 | `TRANSCRIPTIONS_DIR` | `./Transcriptions` | Output directory for transcripts |
 | `SUMMARIES_DIR` | `./Summaries` | Output directory for summaries |
 
@@ -131,10 +133,11 @@ transcription:
 
 ```yaml
 summarization:
-  providers: [gemini, ollama, claude_cli]
+  providers: [claude_cli, claude_proxy, gemini, ollama]
   gemini_model: "gemini-2.0-flash"
   ollama_model: "llama3.1"
   ollama_url: "http://localhost:11434"
+  claude_proxy_url: "http://host.docker.internal:9100"
   prompt: "Summarize the following YouTube video transcript concisely..."
 ```
 
@@ -144,9 +147,22 @@ Providers are tried in order. If one fails, the next is attempted.
 
 | Provider | Setup | Notes |
 |---|---|---|
+| **Claude CLI** | Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code/getting-started) | Requires Claude subscription, local only |
+| **Claude Proxy** | Run `python claude_proxy.py` on the host | For Docker — proxies to Claude CLI on the host |
 | **Gemini** | Set `GEMINI_API_KEY` in `.env` | Fast, high quality |
 | **Ollama** | Run [Ollama](https://ollama.com/) locally | Free, private, no API key |
-| **Claude CLI** | Install [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) | Requires Claude subscription |
+
+### Claude Proxy (Docker)
+
+When running in Docker, the container can't access the host's Claude CLI directly. The Claude Proxy bridges this gap — run it on the host and the container sends summarization requests to it over HTTP.
+
+```bash
+# On the host machine (outside Docker)
+python claude_proxy.py              # listens on 0.0.0.0:9100
+python claude_proxy.py --port 9200  # custom port
+```
+
+The container reaches it via `http://host.docker.internal:9100` by default. Override with `CLAUDE_PROXY_URL` in `.env` or `claude_proxy_url` in `config.yaml`.
 
 ## Docker Details
 
@@ -174,6 +190,7 @@ Both Docker and local modes respect this variable.
 ```
 ├── app.py                 # Flask routes and SSE streaming
 ├── cli.py                 # Command-line interface
+├── claude_proxy.py        # HTTP proxy for Docker → host Claude CLI access
 ├── src/
 │   ├── pipeline.py        # Shared processing pipeline (CLI + web)
 │   ├── fetcher.py         # Video metadata and transcript fetching
