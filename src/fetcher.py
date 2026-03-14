@@ -7,7 +7,6 @@ import re
 import tempfile
 import time
 
-import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from src.config import get_transcription_config
@@ -21,6 +20,11 @@ YOUTUBE_URL_PATTERNS = [
     re.compile(r'(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})'),
     re.compile(r'(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]{11})'),
 ]
+
+_SRT_PATTERN = re.compile(
+    r'(\d+)\s+(\d{2}:\d{2}:\d{2},\d{3})\s+-->\s+(\d{2}:\d{2}:\d{2},\d{3})\s+(.*?)(?=\n\n|\Z)',
+    re.DOTALL,
+)
 
 
 def extract_video_id(url: str) -> str | None:
@@ -36,9 +40,90 @@ def extract_video_id(url: str) -> str | None:
     return None
 
 
-def fetch_video_metadata(video_id: str) -> dict:
-    """Fetch video title and channel using yt-dlp (no download)."""
-    log.info("Fetching metadata for video: %s", video_id)
+def _srt_ts_to_seconds(ts: str) -> float:
+    h, m, rest = ts.split(':')
+    s, ms = rest.split(',')
+    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
+
+
+def _parse_srt_to_snippets(srt_text: str) -> list[dict]:
+    snippets = []
+    for match in _SRT_PATTERN.finditer(srt_text):
+        start = _srt_ts_to_seconds(match.group(2))
+        end = _srt_ts_to_seconds(match.group(3))
+        text = match.group(4).strip().replace('\n', ' ')
+        if text:
+            snippets.append({
+                'text': text,
+                'start': start,
+                'duration': round(end - start, 3),
+            })
+    return snippets
+
+
+# ---------------------------------------------------------------------------
+# Backend: pytubefix
+# ---------------------------------------------------------------------------
+
+def _fetch_metadata_pytubefix(video_id: str) -> dict:
+    from pytubefix import YouTube as PytubeYT
+    url = f'https://www.youtube.com/watch?v={video_id}'
+    yt = PytubeYT(url)
+    return {
+        'title': yt.title or 'Unknown Title',
+        'channel': yt.author or 'Unknown Channel',
+        'duration': yt.length,
+    }
+
+
+def _fetch_subtitles_pytubefix(video_id: str) -> list[dict]:
+    from pytubefix import YouTube as PytubeYT
+    cfg = get_transcription_config()
+    langs = cfg['subtitle_langs']
+
+    url = f'https://www.youtube.com/watch?v={video_id}'
+    yt = PytubeYT(url)
+    captions = yt.captions
+
+    # Try each configured language, then auto-generated variants
+    codes_to_try = list(langs) + [f'a.{lang}' for lang in langs]
+    for code in codes_to_try:
+        try:
+            cap = captions[code]
+            srt_text = cap.generate_srt_captions()
+            snippets = _parse_srt_to_snippets(srt_text)
+            if snippets:
+                log.info("pytubefix captions OK: %d snippets for %s (lang=%s)", len(snippets), video_id, code)
+                return snippets
+        except KeyError:
+            continue
+
+    raise RuntimeError(f"No captions found via pytubefix for {video_id} in languages {codes_to_try}")
+
+
+def _download_audio_pytubefix(video_id: str, output_dir: str) -> str:
+    from pytubefix import YouTube as PytubeYT
+    url = f'https://www.youtube.com/watch?v={video_id}'
+    yt = PytubeYT(url)
+
+    # Prefer m4a (best for Whisper), fall back to any audio
+    stream = yt.streams.filter(only_audio=True, mime_type='audio/mp4').order_by('abr').last()
+    if not stream:
+        stream = yt.streams.filter(only_audio=True).order_by('abr').last()
+    if not stream:
+        raise RuntimeError(f"No audio streams found via pytubefix for {video_id}")
+
+    path = stream.download(output_path=output_dir, filename='audio.m4a')
+    log.info("pytubefix audio downloaded: %s (%s, %s)", path, stream.mime_type, stream.abr)
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Backend: yt-dlp
+# ---------------------------------------------------------------------------
+
+def _fetch_metadata_ytdlp(video_id: str) -> dict:
+    import yt_dlp
     url = f'https://www.youtube.com/watch?v={video_id}'
     opts = {
         'quiet': True,
@@ -48,11 +133,148 @@ def fetch_video_metadata(video_id: str) -> dict:
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
-    meta = {
+    return {
         'title': info.get('title', 'Unknown Title'),
         'channel': info.get('channel', info.get('uploader', 'Unknown Channel')),
         'duration': info.get('duration'),
     }
+
+
+def _fetch_subtitles_ytdlp(video_id: str) -> list[dict]:
+    import yt_dlp
+    cfg = get_transcription_config()
+    langs = cfg['subtitle_langs']
+    url = f'https://www.youtube.com/watch?v={video_id}'
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outtmpl = os.path.join(tmpdir, '%(id)s.%(ext)s')
+        opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': langs,
+            'subtitlesformat': 'json3',
+            'outtmpl': outtmpl,
+        }
+
+        log.info("Fetching subtitles via yt-dlp for %s (langs=%s)", video_id, langs)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([url])
+
+        sub_file = None
+        for fname in os.listdir(tmpdir):
+            if fname.endswith('.json3'):
+                sub_file = os.path.join(tmpdir, fname)
+                break
+
+        if not sub_file:
+            raise RuntimeError(f"No subtitles found for {video_id} in languages {langs}")
+
+        with open(sub_file) as f:
+            data = json.load(f)
+
+        snippets = []
+        for event in data.get('events', []):
+            start_ms = event.get('tStartMs', 0)
+            duration_ms = event.get('dDurationMs', 0)
+            segs = event.get('segs')
+            if not segs:
+                continue
+            text = ''.join(seg.get('utf8', '') for seg in segs).strip()
+            if not text or text == '\n':
+                continue
+            snippets.append({
+                'text': text,
+                'start': start_ms / 1000.0,
+                'duration': duration_ms / 1000.0,
+            })
+
+        if not snippets:
+            raise RuntimeError(f"yt-dlp subtitles were empty for {video_id}")
+
+        log.info("yt-dlp subtitles OK: %d snippets for %s", len(snippets), video_id)
+        return snippets
+
+
+def _download_audio_ytdlp(video_id: str, output_dir: str) -> str:
+    import yt_dlp
+    url = f'https://www.youtube.com/watch?v={video_id}'
+    audio_path = os.path.join(output_dir, 'audio.m4a')
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+        'outtmpl': audio_path,
+    }
+
+    log.info("Downloading audio via yt-dlp for %s", video_id)
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        ydl.download([url])
+
+    if not os.path.exists(audio_path):
+        # yt-dlp may have used a different extension
+        for fname in os.listdir(output_dir):
+            audio_path = os.path.join(output_dir, fname)
+            break
+
+    log.info("yt-dlp audio downloaded: %s", audio_path)
+    return audio_path
+
+
+# ---------------------------------------------------------------------------
+# Backend dispatch helpers
+# ---------------------------------------------------------------------------
+
+_METADATA_BACKENDS = {
+    'pytubefix': _fetch_metadata_pytubefix,
+    'ytdlp': _fetch_metadata_ytdlp,
+}
+
+_SUBTITLE_BACKENDS = {
+    'pytubefix': _fetch_subtitles_pytubefix,
+    'ytdlp': _fetch_subtitles_ytdlp,
+}
+
+_AUDIO_BACKENDS = {
+    'pytubefix': _download_audio_pytubefix,
+    'ytdlp': _download_audio_ytdlp,
+}
+
+
+def _get_backends() -> list[str]:
+    return get_transcription_config().get('video_backend', ['pytubefix', 'ytdlp'])
+
+
+def _try_backends(backend_map: dict, *args, label: str = '') -> any:
+    backends = _get_backends()
+    errors = []
+    for name in backends:
+        fn = backend_map.get(name)
+        if not fn:
+            continue
+        try:
+            result = fn(*args)
+            log.info("%s succeeded with %s backend", label, name)
+            return result
+        except Exception as e:
+            log.warning("%s failed with %s backend: %s", label, name, e)
+            errors.append(f"{name}: {e}")
+    raise RuntimeError(
+        f"All backends failed for {label}:\n" +
+        "\n".join(f"  - {err}" for err in errors)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def fetch_video_metadata(video_id: str) -> dict:
+    """Fetch video title, channel, and duration. Tries backends in config order."""
+    log.info("Fetching metadata for video: %s", video_id)
+    meta = _try_backends(_METADATA_BACKENDS, video_id, label=f"metadata:{video_id}")
     log.info("Metadata OK: \"%s\" by %s (duration=%s)", meta['title'], meta['channel'], meta['duration'])
     return meta
 
@@ -92,68 +314,13 @@ def fetch_transcript(video_id: str, include_timestamps: bool = True) -> list[dic
             raise
 
 
-def fetch_transcript_ytdlp(video_id: str) -> list[dict]:
-    """Fetch subtitles via yt-dlp in json3 format. Returns list of {text, start, duration} dicts."""
-    cfg = get_transcription_config()
-    langs = cfg['subtitle_langs']
-    url = f'https://www.youtube.com/watch?v={video_id}'
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        outtmpl = os.path.join(tmpdir, '%(id)s.%(ext)s')
-        opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'skip_download': True,
-            'writesubtitles': True,
-            'writeautomaticsub': True,
-            'subtitleslangs': langs,
-            'subtitlesformat': 'json3',
-            'outtmpl': outtmpl,
-        }
-
-        log.info("Fetching subtitles via yt-dlp for %s (langs=%s)", video_id, langs)
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
-
-        # Find the downloaded subtitle file
-        sub_file = None
-        for fname in os.listdir(tmpdir):
-            if fname.endswith('.json3'):
-                sub_file = os.path.join(tmpdir, fname)
-                break
-
-        if not sub_file:
-            raise RuntimeError(f"No subtitles found for {video_id} in languages {langs}")
-
-        with open(sub_file) as f:
-            data = json.load(f)
-
-        snippets = []
-        for event in data.get('events', []):
-            # json3 events have tStartMs and dDurationMs
-            start_ms = event.get('tStartMs', 0)
-            duration_ms = event.get('dDurationMs', 0)
-            segs = event.get('segs')
-            if not segs:
-                continue
-            text = ''.join(seg.get('utf8', '') for seg in segs).strip()
-            if not text or text == '\n':
-                continue
-            snippets.append({
-                'text': text,
-                'start': start_ms / 1000.0,
-                'duration': duration_ms / 1000.0,
-            })
-
-        if not snippets:
-            raise RuntimeError(f"yt-dlp subtitles were empty for {video_id}")
-
-        log.info("yt-dlp subtitles OK: %d snippets for %s", len(snippets), video_id)
-        return snippets
+def fetch_transcript_subtitles(video_id: str) -> list[dict]:
+    """Fetch subtitles using the configured video backend. Returns list of {text, start, duration} dicts."""
+    return _try_backends(_SUBTITLE_BACKENDS, video_id, label=f"subtitles:{video_id}")
 
 
 def fetch_transcript_whisper(video_id: str, emit_fn=None) -> list[dict]:
-    """Download audio via yt-dlp, transcribe with local Whisper. Returns list of {text, start, duration} dicts."""
+    """Download audio using configured backend, transcribe with local Whisper."""
     cfg = get_transcription_config()
     if not cfg['whisper_enabled']:
         raise RuntimeError("Whisper is disabled in config.yaml")
@@ -161,11 +328,9 @@ def fetch_transcript_whisper(video_id: str, emit_fn=None) -> list[dict]:
     model_name = cfg['whisper_model']
     device_setting = cfg['whisper_device']
 
-    # Lazy import to avoid slow load when unused
     import whisper
     import torch
 
-    # Resolve device
     if device_setting == 'auto':
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     else:
@@ -176,28 +341,11 @@ def fetch_transcript_whisper(video_id: str, emit_fn=None) -> list[dict]:
     log.info("Loading Whisper model '%s' on device '%s'", model_name, device)
     model = whisper.load_model(model_name, device=device)
 
-    url = f'https://www.youtube.com/watch?v={video_id}'
-
     with tempfile.TemporaryDirectory() as tmpdir:
-        audio_path = os.path.join(tmpdir, 'audio.m4a')
-        opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
-            'outtmpl': audio_path,
-        }
-
         if emit_fn:
-            emit_fn('status', message=f'Downloading audio for Whisper transcription...')
-        log.info("Downloading audio for %s", video_id)
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
+            emit_fn('status', message='Downloading audio for Whisper transcription...')
 
-        if not os.path.exists(audio_path):
-            # yt-dlp may have added a different extension
-            for fname in os.listdir(tmpdir):
-                audio_path = os.path.join(tmpdir, fname)
-                break
+        audio_path = _try_backends(_AUDIO_BACKENDS, video_id, tmpdir, label=f"audio:{video_id}")
 
         if emit_fn:
             emit_fn('status', message=f'Transcribing with Whisper ({model_name}/{device})... this may take a while.')
@@ -219,7 +367,8 @@ def fetch_transcript_whisper(video_id: str, emit_fn=None) -> list[dict]:
 # Map method names to callables
 _METHOD_MAP = {
     'youtube_transcript_api': lambda vid, ts, emit: fetch_transcript(vid, ts),
-    'ytdlp_subtitles': lambda vid, ts, emit: fetch_transcript_ytdlp(vid),
+    'pytubefix_subtitles': lambda vid, ts, emit: fetch_transcript_subtitles(vid),
+    'ytdlp_subtitles': lambda vid, ts, emit: _fetch_subtitles_ytdlp(vid),
     'whisper': lambda vid, ts, emit: fetch_transcript_whisper(vid, emit_fn=emit),
 }
 
@@ -241,7 +390,7 @@ def fetch_transcript_auto(
 
     # Daily gate: if under limit, try youtube_transcript_api first
     if get_yt_api_count() < daily_limit:
-        methods = ['youtube_transcript_api', 'ytdlp_subtitles']
+        methods = ['youtube_transcript_api', 'pytubefix_subtitles']
         if cfg['whisper_enabled']:
             methods.append('whisper')
         log.info("Under daily YT API limit — using youtube_transcript_api first for %s", video_id)
@@ -261,7 +410,7 @@ def fetch_transcript_auto(
     # Try each method in order
     errors = []
     yt_api_failed = False
-    ytdlp_failed = False
+    subtitles_failed = False
 
     for method_name in methods:
         fn = _METHOD_MAP.get(method_name)
@@ -273,11 +422,11 @@ def fetch_transcript_auto(
             log.info("Skipping whisper (disabled in config)")
             continue
 
-        # Emit warning before Whisper fallback if both other methods failed
-        if method_name == 'whisper' and yt_api_failed and ytdlp_failed and emit_fn:
+        # Emit warning before Whisper fallback if other methods failed
+        if method_name == 'whisper' and yt_api_failed and subtitles_failed and emit_fn:
             emit_fn(
                 'warning',
-                message='Both youtube-transcript-api and yt-dlp failed. '
+                message='Transcript and subtitle methods failed. '
                         'Falling back to Whisper (local transcription, this may be slow)...',
             )
 
@@ -292,8 +441,8 @@ def fetch_transcript_auto(
             errors.append(f"{method_name}: {e}")
             if method_name == 'youtube_transcript_api':
                 yt_api_failed = True
-            elif method_name == 'ytdlp_subtitles':
-                ytdlp_failed = True
+            elif method_name in ('pytubefix_subtitles', 'ytdlp_subtitles'):
+                subtitles_failed = True
 
     raise RuntimeError(
         f"All transcription methods failed for {video_id}:\n" +

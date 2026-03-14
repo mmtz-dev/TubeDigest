@@ -1,5 +1,6 @@
 flask>=3.0
 youtube-transcript-api>=1.0.0
+pytubefix>=8.0
 yt-dlp>=2024.0
 openai-whisper>=20231117
 pyyaml>=6.0

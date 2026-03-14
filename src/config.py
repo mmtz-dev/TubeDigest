@@ -9,11 +9,12 @@ _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.
 
 DEFAULTS = {
     'transcription': {
+        'video_backend': ['pytubefix', 'ytdlp'],
         'short_max_minutes': 10,
         'mid_max_minutes': 20,
         'short_methods': ['whisper'],
-        'mid_methods': ['ytdlp_subtitles', 'youtube_transcript_api', 'whisper'],
-        'long_methods': ['youtube_transcript_api', 'ytdlp_subtitles', 'whisper'],
+        'mid_methods': ['pytubefix_subtitles', 'youtube_transcript_api', 'whisper'],
+        'long_methods': ['youtube_transcript_api', 'pytubefix_subtitles', 'whisper'],
         'yt_api_daily_limit': 10,
         'whisper_enabled': True,
         'whisper_model': 'base',

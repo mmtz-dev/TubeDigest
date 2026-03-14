@@ -95,14 +95,19 @@ def process_video(
 
     # needs_transcript
     try:
+        from src.config import get_transcription_config
+        backends = get_transcription_config().get('video_backend', ['pytubefix', 'ytdlp'])
+        emit('status', message=f'Video backend: {backends[0]} (fallback: {", ".join(backends[1:])})')
+
         metadata = fetch_video_metadata(video_id)
         title = metadata['title']
         duration = metadata.get('duration')
 
         emit('status', message=f'Fetching transcript for: {title}')
-        transcript, _method = fetch_transcript_auto(
+        transcript, method = fetch_transcript_auto(
             video_id, duration, include_timestamps, emit_fn=emit,
         )
+        emit('status', message=f'Transcript fetched via: {method}')
         content = format_transcript_content(title, video_id, transcript, include_timestamps)
         filepath = save_transcript(title, video_id, content, playlist_name)
         transcript_rel = os.path.relpath(filepath, transcriptions_dir)

@@ -6,6 +6,7 @@ services:
     ports:
       - "${PORT:-5555}:5555"
     volumes:
+      - .:/app
       - ${TRANSCRIPTIONS_DIR:-./Transcriptions}:/app/Transcriptions
       - ${SUMMARIES_DIR:-./Summaries}:/app/Summaries
       - whisper-cache:/home/.cache/whisper

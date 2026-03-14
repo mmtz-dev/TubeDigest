@@ -1,11 +1,16 @@
 transcription:
+  # Video backend priority for metadata, subtitles, audio download, and playlists.
+  # Each backend is tried in order; falls back to the next on failure.
+  # Options: pytubefix, ytdlp
+  video_backend: [pytubefix, ytdlp]
+
   short_max_minutes: 10
   mid_max_minutes: 20
 
   # Method chains per duration tier (tried in order, falls back on failure)
   short_methods: [whisper]
-  mid_methods: [ytdlp_subtitles, youtube_transcript_api, whisper]
-  long_methods: [youtube_transcript_api, ytdlp_subtitles, whisper]
+  mid_methods: [pytubefix_subtitles, youtube_transcript_api, whisper]
+  long_methods: [youtube_transcript_api, pytubefix_subtitles, whisper]
 
   # Daily usage tracking: if youtube-transcript-api has been used fewer than
   # this many times in the last 24h, skip duration routing and use it first
