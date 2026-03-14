@@ -85,7 +85,8 @@ The CLI tracks processed videos in a `.processed.json` manifest file inside the 
 ## Features
 
 - **Transcript downloading** — Fetches captions from YouTube videos, Shorts, and playlists
-- **Multi-method fallback** — youtube-transcript-api → yt-dlp subtitles → local Whisper transcription
+- **Multi-method fallback** — youtube-transcript-api → pytubefix/yt-dlp subtitles → local Whisper transcription
+- **Switchable video backend** — pytubefix (default) or yt-dlp for metadata, subtitles, audio, and playlists — configurable with automatic fallback
 - **AI summarization** — Summarize transcripts using Claude CLI, Claude Proxy, Gemini, or Ollama
 - **Real-time progress** — Server-Sent Events stream status updates to the browser
 - **Batch processing** — Process multiple videos or entire playlists with rate limiting
@@ -117,16 +118,25 @@ Controls how transcripts are fetched, with method chains based on video duration
 
 ```yaml
 transcription:
+  # Video backend for metadata, subtitles, audio, and playlists (tried in order)
+  video_backend: [pytubefix, ytdlp]
+
   short_max_minutes: 10
   mid_max_minutes: 20
   short_methods: [whisper]
-  mid_methods: [ytdlp_subtitles, youtube_transcript_api, whisper]
-  long_methods: [youtube_transcript_api, ytdlp_subtitles, whisper]
+  mid_methods: [pytubefix_subtitles, youtube_transcript_api, whisper]
+  long_methods: [youtube_transcript_api, pytubefix_subtitles, whisper]
   yt_api_daily_limit: 10
   whisper_enabled: true
   whisper_model: "base"          # tiny | base | small | medium | large
   whisper_device: "auto"         # auto | cuda | cpu
   subtitle_langs: [en, en-US, en-GB]
+```
+
+To switch to yt-dlp as the primary backend, change the order:
+
+```yaml
+video_backend: [ytdlp, pytubefix]
 ```
 
 ### Summarization Settings (`config.yaml`)
