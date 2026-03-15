@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 
 from src.fetcher import extract_video_id, fetch_video_metadata, fetch_transcript_auto
-from src.manifest import check_status, find_video_id_for_transcript, update_entry
+from src.manifest import check_status, find_file_recursive, find_video_id_for_transcript, update_entry
 from src.playlist import is_playlist_url, extract_playlist_videos
 from src.storage import format_transcript_content, save_transcript
 from src.summary_storage import derive_summary_rel_path, read_transcript, save_summary
@@ -133,8 +133,7 @@ def process_summary(
     emit = emit_fn or _noop_emit
 
     summary_rel = derive_summary_rel_path(transcript_rel)
-    summary_path = os.path.join(summaries_dir, summary_rel)
-    if os.path.isfile(summary_path):
+    if find_file_recursive(summaries_dir, summary_rel):
         return SummaryResult('skip', summary_rel=summary_rel)
 
     try:

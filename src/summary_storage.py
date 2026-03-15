@@ -44,8 +44,13 @@ def list_transcripts() -> list[dict]:
 
 
 def read_transcript(rel_path: str) -> str:
-    """Read transcript file content by relative path."""
-    full_path = os.path.join(TRANSCRIPTIONS_DIR, rel_path)
+    """Read transcript file content by relative path, with recursive fallback."""
+    from src.manifest import find_file_recursive
+
+    found = find_file_recursive(TRANSCRIPTIONS_DIR, rel_path)
+    if not found:
+        raise FileNotFoundError(f'Transcript not found: {rel_path}')
+    full_path = os.path.join(TRANSCRIPTIONS_DIR, found)
     with open(full_path, 'r', encoding='utf-8') as f:
         return f.read()
 

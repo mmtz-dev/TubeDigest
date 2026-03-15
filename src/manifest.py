@@ -26,6 +26,22 @@ def save_manifest(output_dir: str, manifest: dict) -> None:
     os.replace(tmp_path, final_path)
 
 
+def find_file_recursive(base_dir: str, rel_path: str) -> str | None:
+    """Find a file by relative path, falling back to a recursive basename search.
+
+    Returns the (possibly updated) relative path if found, or None.
+    """
+    if os.path.isfile(os.path.join(base_dir, rel_path)):
+        return rel_path
+
+    target = os.path.basename(rel_path)
+    for root, _dirs, files in os.walk(base_dir):
+        if target in files:
+            return os.path.relpath(os.path.join(root, target), base_dir)
+
+    return None
+
+
 def check_status(
     manifest: dict,
     video_id: str,
@@ -43,17 +59,19 @@ def check_status(
     if not entry:
         return 'needs_transcript'
 
-    transcript_path = os.path.join(output_dir, entry['transcript'])
-    if not os.path.isfile(transcript_path):
+    found_transcript = find_file_recursive(output_dir, entry['transcript'])
+    if not found_transcript:
         return 'needs_transcript'
+    entry['transcript'] = found_transcript
 
     summary_key = entry.get('summary')
     if not summary_key:
         return 'needs_summary'
 
-    summary_path = os.path.join(summaries_dir, summary_key)
-    if not os.path.isfile(summary_path):
+    found_summary = find_file_recursive(summaries_dir, summary_key)
+    if not found_summary:
         return 'needs_summary'
+    entry['summary'] = found_summary
 
     return 'skip'
 
