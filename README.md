@@ -93,7 +93,7 @@ If files are moved to different subfolders, the manifest self-heals by searching
 - **Real-time progress** — Server-Sent Events stream status updates to the browser
 - **Batch processing** — Process multiple videos or entire playlists with rate limiting
 - **CLI mode** — Scriptable command-line interface with duplicate detection
-- **Dark-themed UI** — Single-page web app, no framework dependencies
+- **Dark-themed UI** — Single-page web app with filterable transcript list, no framework dependencies
 
 ## Configuration
 
