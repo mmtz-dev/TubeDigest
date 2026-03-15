@@ -129,6 +129,7 @@ transcription:
   mid_methods: [pytubefix_subtitles, youtube_transcript_api, whisper]
   long_methods: [youtube_transcript_api, pytubefix_subtitles, whisper]
   yt_api_daily_limit: 10
+  ytdlp_daily_limit: 50       # machine-wide daily cap for yt-dlp calls
   whisper_enabled: true
   whisper_model: "base"          # tiny | base | small | medium | large
   whisper_device: "auto"         # auto | cuda | cpu
@@ -186,6 +187,7 @@ The container reaches it via `http://host.docker.internal:9100` by default. Over
   - `./Transcriptions` — saved transcripts
   - `./Summaries` — saved summaries
   - `whisper-cache` — persistent Whisper model cache
+  - `ytdlp-usage` — persistent yt-dlp daily usage counter
 
 ### Changing the Port
 
@@ -213,7 +215,8 @@ Both Docker and local modes respect this variable.
 │   ├── summarizer.py      # AI summarization provider abstraction
 │   ├── summary_storage.py # Summary file management
 │   ├── config.py          # YAML config loading
-│   └── usage_tracker.py   # Daily API call tracking
+│   ├── usage_tracker.py   # Daily YT API call tracking
+│   └── ytdlp_tracker.py   # Machine-wide daily yt-dlp usage tracking
 ├── templates/index.html   # Single-page UI
 ├── static/                # CSS and JS
 ├── config.yaml            # Transcription and summarization config

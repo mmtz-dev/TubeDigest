@@ -17,6 +17,11 @@ transcription:
   # (with normal fallback). Once the limit is hit, switch to duration-based routing.
   yt_api_daily_limit: 10
 
+  # Daily yt-dlp usage cap (machine-wide). yt-dlp is only used as a fallback
+  # when pytubefix fails. Once the limit is reached, yt-dlp calls are blocked
+  # to avoid IP bans from YouTube.
+  ytdlp_daily_limit: 50
+
   whisper_enabled: true
   whisper_model: "base"           # tiny | base | small | medium | large
   whisper_device: "auto"          # auto (GPU if available, else CPU) | cuda | cpu

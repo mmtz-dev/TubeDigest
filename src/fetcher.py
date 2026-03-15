@@ -11,6 +11,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 from src.config import get_transcription_config
 from src.usage_tracker import get_yt_api_count, increment_yt_api_count
+from src.ytdlp_tracker import check_ytdlp_limit, increment_ytdlp_count
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +124,8 @@ def _download_audio_pytubefix(video_id: str, output_dir: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _fetch_metadata_ytdlp(video_id: str) -> dict:
+    if check_ytdlp_limit():
+        raise RuntimeError("yt-dlp daily limit reached")
     import yt_dlp
     url = f'https://www.youtube.com/watch?v={video_id}'
     opts = {
@@ -133,6 +136,7 @@ def _fetch_metadata_ytdlp(video_id: str) -> dict:
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
+    increment_ytdlp_count()
     return {
         'title': info.get('title', 'Unknown Title'),
         'channel': info.get('channel', info.get('uploader', 'Unknown Channel')),
@@ -141,6 +145,8 @@ def _fetch_metadata_ytdlp(video_id: str) -> dict:
 
 
 def _fetch_subtitles_ytdlp(video_id: str) -> list[dict]:
+    if check_ytdlp_limit():
+        raise RuntimeError("yt-dlp daily limit reached")
     import yt_dlp
     cfg = get_transcription_config()
     langs = cfg['subtitle_langs']
@@ -162,6 +168,7 @@ def _fetch_subtitles_ytdlp(video_id: str) -> list[dict]:
         log.info("Fetching subtitles via yt-dlp for %s (langs=%s)", video_id, langs)
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
+        increment_ytdlp_count()
 
         sub_file = None
         for fname in os.listdir(tmpdir):
@@ -199,6 +206,8 @@ def _fetch_subtitles_ytdlp(video_id: str) -> list[dict]:
 
 
 def _download_audio_ytdlp(video_id: str, output_dir: str) -> str:
+    if check_ytdlp_limit():
+        raise RuntimeError("yt-dlp daily limit reached")
     import yt_dlp
     url = f'https://www.youtube.com/watch?v={video_id}'
     audio_path = os.path.join(output_dir, 'audio.m4a')
@@ -212,6 +221,7 @@ def _download_audio_ytdlp(video_id: str, output_dir: str) -> str:
     log.info("Downloading audio via yt-dlp for %s", video_id)
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([url])
+    increment_ytdlp_count()
 
     if not os.path.exists(audio_path):
         # yt-dlp may have used a different extension

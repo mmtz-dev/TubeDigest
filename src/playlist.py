@@ -5,6 +5,7 @@ import re
 
 from src.config import get_transcription_config
 from src.fetcher import extract_video_id
+from src.ytdlp_tracker import check_ytdlp_limit, increment_ytdlp_count
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,8 @@ def _extract_pytubefix(url: str) -> dict:
 
 
 def _extract_ytdlp(url: str) -> dict:
+    if check_ytdlp_limit():
+        raise RuntimeError("yt-dlp daily limit reached")
     import yt_dlp
     opts = {
         'quiet': True,
@@ -45,6 +48,7 @@ def _extract_ytdlp(url: str) -> dict:
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
+    increment_ytdlp_count()
 
     videos = []
     for entry in info.get('entries', []):

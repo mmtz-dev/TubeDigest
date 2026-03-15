@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/Transcriptions /app/Summaries
+RUN mkdir -p /app/Transcriptions /app/Summaries /home/.local/share/tubedigest
 
 ENV RUNNING_IN_DOCKER=true
 ENV PORT=5555

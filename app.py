@@ -22,6 +22,7 @@ from src.storage import TRANSCRIPTIONS_DIR, SUMMARIES_DIR
 from src.summary_storage import list_transcripts, derive_summary_rel_path
 from src.config import get_transcription_config
 from src.usage_tracker import get_yt_api_count
+from src.ytdlp_tracker import get_ytdlp_count
 
 app = Flask(__name__)
 job_manager = JobManager()
@@ -33,6 +34,7 @@ def log_startup_info():
     log.info("Transcriptions directory: %s", TRANSCRIPTIONS_DIR)
     log.info("Summaries directory:      %s", SUMMARIES_DIR)
     log.info("Today's YT API transcript count: %d", get_yt_api_count())
+    log.info("Today's yt-dlp usage count:      %d", get_ytdlp_count())
 
 
 log_startup_info()
@@ -111,6 +113,8 @@ def app_info():
         'summaries_dir': summaries_display,
         'yt_api_count': get_yt_api_count(),
         'yt_api_daily_limit': cfg['yt_api_daily_limit'],
+        'ytdlp_count': get_ytdlp_count(),
+        'ytdlp_daily_limit': cfg['ytdlp_daily_limit'],
     })
 
 

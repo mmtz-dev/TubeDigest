@@ -16,6 +16,7 @@ DEFAULTS = {
         'mid_methods': ['pytubefix_subtitles', 'youtube_transcript_api', 'whisper'],
         'long_methods': ['youtube_transcript_api', 'pytubefix_subtitles', 'whisper'],
         'yt_api_daily_limit': 10,
+        'ytdlp_daily_limit': 50,
         'whisper_enabled': True,
         'whisper_model': 'base',
         'whisper_device': 'auto',
