@@ -3,8 +3,6 @@
 import json
 import logging
 import os
-import subprocess
-import sys
 import time
 from queue import Empty
 
@@ -27,8 +25,6 @@ from src.usage_tracker import get_yt_api_count
 
 app = Flask(__name__)
 job_manager = JobManager()
-
-IN_DOCKER = os.environ.get('RUNNING_IN_DOCKER', '').lower() == 'true'
 
 log = logging.getLogger(__name__)
 
@@ -123,20 +119,6 @@ def health():
     return jsonify({'status': 'ok'})
 
 
-@app.route('/api/open-folder', methods=['POST'])
-def open_folder():
-    if IN_DOCKER:
-        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': TRANSCRIPTIONS_DIR}), 400
-
-    os.makedirs(TRANSCRIPTIONS_DIR, exist_ok=True)
-    try:
-        opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
-        subprocess.Popen([opener, TRANSCRIPTIONS_DIR])
-        return jsonify({'ok': True})
-    except FileNotFoundError:
-        return jsonify({'error': f'{opener} not available', 'path': TRANSCRIPTIONS_DIR}), 500
-
-
 @app.route('/api/transcripts')
 def get_transcripts():
     return jsonify({'transcripts': list_transcripts()})
@@ -172,20 +154,6 @@ def get_summary(rel_path):
     with open(full_path, 'r', encoding='utf-8') as f:
         content = f.read()
     return jsonify({'content': content})
-
-
-@app.route('/api/open-summaries-folder', methods=['POST'])
-def open_summaries_folder():
-    if IN_DOCKER:
-        return jsonify({'error': 'Cannot open folder from inside Docker container', 'path': SUMMARIES_DIR}), 400
-
-    os.makedirs(SUMMARIES_DIR, exist_ok=True)
-    try:
-        opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
-        subprocess.Popen([opener, SUMMARIES_DIR])
-        return jsonify({'ok': True})
-    except FileNotFoundError:
-        return jsonify({'error': f'{opener} not available', 'path': SUMMARIES_DIR}), 500
 
 
 if __name__ == '__main__':

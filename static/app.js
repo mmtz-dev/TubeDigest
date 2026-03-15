@@ -1,7 +1,6 @@
 const urlsInput = document.getElementById('urls');
 const timestampsCheckbox = document.getElementById('timestamps');
 const btnStart = document.getElementById('btn-start');
-const btnFolder = document.getElementById('btn-folder');
 const progressSection = document.getElementById('progress-section');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
@@ -130,27 +129,10 @@ function listenToProgress(jobId) {
     };
 }
 
-btnFolder.addEventListener('click', async () => {
-    try {
-        const res = await fetch('/api/open-folder', { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) {
-            if (data.path) {
-                log(`Transcriptions folder: ${data.path}`, 'status');
-            } else {
-                log(data.error || 'Could not open folder', 'error');
-            }
-        }
-    } catch (err) {
-        log('Could not open folder: ' + err.message, 'error');
-    }
-});
-
 /* ── Summarization Section ── */
 const btnRefresh = document.getElementById('btn-refresh');
 const btnCheckAll = document.getElementById('btn-check-all');
 const btnSummarize = document.getElementById('btn-summarize');
-const btnSummariesFolder = document.getElementById('btn-summaries-folder');
 const transcriptList = document.getElementById('transcript-list');
 const summaryProgressSection = document.getElementById('summary-progress-section');
 const summaryProgressBar = document.getElementById('summary-progress-bar');
@@ -367,18 +349,3 @@ function listenToSummaryProgress(jobId) {
     };
 }
 
-btnSummariesFolder.addEventListener('click', async () => {
-    try {
-        const res = await fetch('/api/open-summaries-folder', { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) {
-            if (data.path) {
-                summaryLog(`Summaries folder: ${data.path}`, 'status');
-            } else {
-                summaryLog(data.error || 'Could not open folder', 'error');
-            }
-        }
-    } catch (err) {
-        summaryLog('Could not open folder: ' + err.message, 'error');
-    }
-});
