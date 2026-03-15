@@ -7,14 +7,16 @@ services:
       - "${PORT:-5555}:5555"
     volumes:
       - .:/app
-      - ${TRANSCRIPTIONS_DIR:-./Transcriptions}:/app/Transcriptions
-      - ${SUMMARIES_DIR:-./Summaries}:/app/Summaries
+      - ${TRANSCRIPTIONS_DIR:-./Transcriptions}:${TRANSCRIPTIONS_DIR:-/app/Transcriptions}
+      - ${SUMMARIES_DIR:-./Summaries}:${SUMMARIES_DIR:-/app/Summaries}
       - whisper-cache:/home/.cache/whisper
     environment:
       - RUNNING_IN_DOCKER=true
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - XDG_CACHE_HOME=/home/.cache
       - PORT=${PORT:-5555}
+      - TRANSCRIPTIONS_DIR=${TRANSCRIPTIONS_DIR:-/app/Transcriptions}
+      - SUMMARIES_DIR=${SUMMARIES_DIR:-/app/Summaries}
       - HOST_TRANSCRIPTIONS_DIR=${TRANSCRIPTIONS_DIR:-./Transcriptions}
       - HOST_SUMMARIES_DIR=${SUMMARIES_DIR:-./Summaries}
     extra_hosts:
