@@ -246,9 +246,29 @@ function renderTranscriptList(transcripts) {
             transcriptList.appendChild(item);
         }
     }
+
+    // Re-apply hide filter if toggle is active
+    if (hideSummarizedCheckbox.checked) {
+        document.querySelectorAll('.transcript-item').forEach(item => {
+            if (item.querySelector('.summary-badge')) {
+                item.style.display = 'none';
+            }
+        });
+    }
 }
 
+const hideSummarizedCheckbox = document.getElementById('hide-summarized');
+
 btnRefresh.addEventListener('click', loadTranscripts);
+
+hideSummarizedCheckbox.addEventListener('change', () => {
+    const hide = hideSummarizedCheckbox.checked;
+    document.querySelectorAll('.transcript-item').forEach(item => {
+        if (item.querySelector('.summary-badge')) {
+            item.style.display = hide ? 'none' : '';
+        }
+    });
+});
 
 btnCheckAll.addEventListener('click', () => {
     const allChecked = allCheckboxes.length > 0 && allCheckboxes.every(cb => cb.checked);

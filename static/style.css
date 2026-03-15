@@ -222,7 +222,14 @@ textarea:focus {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+    align-items: center;
     margin-bottom: 1rem;
+}
+
+.toggle-summarized {
+    margin-left: auto;
+    font-size: 0.85rem;
+    color: #aaa;
 }
 
 /* Transcript List */

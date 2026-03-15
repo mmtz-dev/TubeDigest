@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import time
 from queue import Empty
 
@@ -129,10 +130,11 @@ def open_folder():
 
     os.makedirs(TRANSCRIPTIONS_DIR, exist_ok=True)
     try:
-        subprocess.Popen(['xdg-open', TRANSCRIPTIONS_DIR])
+        opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
+        subprocess.Popen([opener, TRANSCRIPTIONS_DIR])
         return jsonify({'ok': True})
     except FileNotFoundError:
-        return jsonify({'error': 'xdg-open not available', 'path': TRANSCRIPTIONS_DIR}), 500
+        return jsonify({'error': f'{opener} not available', 'path': TRANSCRIPTIONS_DIR}), 500
 
 
 @app.route('/api/transcripts')
@@ -179,10 +181,11 @@ def open_summaries_folder():
 
     os.makedirs(SUMMARIES_DIR, exist_ok=True)
     try:
-        subprocess.Popen(['xdg-open', SUMMARIES_DIR])
+        opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
+        subprocess.Popen([opener, SUMMARIES_DIR])
         return jsonify({'ok': True})
     except FileNotFoundError:
-        return jsonify({'error': 'xdg-open not available', 'path': SUMMARIES_DIR}), 500
+        return jsonify({'error': f'{opener} not available', 'path': SUMMARIES_DIR}), 500
 
 
 if __name__ == '__main__':
