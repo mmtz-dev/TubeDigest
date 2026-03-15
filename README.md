@@ -82,6 +82,8 @@ The CLI tracks processed videos in a `.processed.json` manifest file inside the 
 - **Transcript deleted** — re-fetches transcript and re-summarizes
 - **`--force` flag** — reprocesses everything regardless
 
+If files are moved to different subfolders, the manifest self-heals by searching recursively for the file by name and updating the stored path automatically.
+
 ## Features
 
 - **Transcript downloading** — Fetches captions from YouTube videos, Shorts, and playlists
