@@ -86,6 +86,7 @@ If files are moved to different subfolders, the manifest self-heals by searching
 
 ## Features
 
+- **Rich video metadata** — Saves upload date, channel, views, tags, categories, chapters, and description alongside transcripts
 - **Transcript downloading** — Fetches captions from YouTube videos, Shorts, and playlists
 - **Multi-method fallback** — youtube-transcript-api → pytubefix/yt-dlp subtitles → local Whisper transcription
 - **Switchable video backend** — pytubefix (default) or yt-dlp for metadata, subtitles, audio, and playlists — configurable with automatic fallback
