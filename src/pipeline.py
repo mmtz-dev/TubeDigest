@@ -108,11 +108,11 @@ def process_video(
             video_id, duration, include_timestamps, emit_fn=emit,
         )
         emit('status', message=f'Transcript fetched via: {method}')
-        content = format_transcript_content(title, video_id, transcript, include_timestamps)
+        content = format_transcript_content(title, video_id, transcript, include_timestamps, metadata=metadata)
         filepath = save_transcript(title, video_id, content, playlist_name)
         transcript_rel = os.path.relpath(filepath, transcriptions_dir)
 
-        update_entry(manifest, video_id, title, transcript_rel, None)
+        update_entry(manifest, video_id, title, transcript_rel, None, metadata=metadata)
         return VideoResult('ok', title=title, transcript_rel=transcript_rel)
 
     except Exception as e:

@@ -70,10 +70,31 @@ def _fetch_metadata_pytubefix(video_id: str) -> dict:
     from pytubefix import YouTube as PytubeYT
     url = f'https://www.youtube.com/watch?v={video_id}'
     yt = PytubeYT(url)
+
+    upload_date = None
+    if yt.publish_date:
+        upload_date = yt.publish_date.strftime('%Y-%m-%d')
+
+    chapters = []
+    try:
+        for ch in (yt.chapters or []):
+            chapters.append({
+                'title': ch.title,
+                'start': ch.start_seconds,
+            })
+    except Exception:
+        pass
+
     return {
         'title': yt.title or 'Unknown Title',
         'channel': yt.author or 'Unknown Channel',
         'duration': yt.length,
+        'upload_date': upload_date,
+        'description': yt.description or '',
+        'view_count': yt.views,
+        'tags': yt.keywords or [],
+        'categories': [],
+        'chapters': chapters,
     }
 
 
@@ -137,10 +158,29 @@ def _fetch_metadata_ytdlp(video_id: str) -> dict:
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
     increment_ytdlp_count()
+
+    upload_date = None
+    raw_date = info.get('upload_date')  # YYYYMMDD string
+    if raw_date and len(raw_date) == 8:
+        upload_date = f'{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}'
+
+    chapters = []
+    for ch in (info.get('chapters') or []):
+        chapters.append({
+            'title': ch.get('title', ''),
+            'start': ch.get('start_time', 0),
+        })
+
     return {
         'title': info.get('title', 'Unknown Title'),
         'channel': info.get('channel', info.get('uploader', 'Unknown Channel')),
         'duration': info.get('duration'),
+        'upload_date': upload_date,
+        'description': info.get('description', ''),
+        'view_count': info.get('view_count'),
+        'tags': info.get('tags') or [],
+        'categories': info.get('categories') or [],
+        'chapters': chapters,
     }
 
 
@@ -257,7 +297,8 @@ def _get_backends() -> list[str]:
     return get_transcription_config().get('video_backend', ['pytubefix', 'ytdlp'])
 
 
-def _try_backends(backend_map: dict, *args, label: str = '') -> any:
+def _try_backends(backend_map: dict, *args, label: str = '') -> tuple[any, str]:
+    """Try backends in config order. Returns (result, backend_name)."""
     backends = _get_backends()
     errors = []
     for name in backends:
@@ -265,11 +306,12 @@ def _try_backends(backend_map: dict, *args, label: str = '') -> any:
         if not fn:
             continue
         try:
+            log.info("[%s] trying %s backend...", label, name)
             result = fn(*args)
-            log.info("%s succeeded with %s backend", label, name)
-            return result
+            log.info("[%s] succeeded with %s backend", label, name)
+            return result, name
         except Exception as e:
-            log.warning("%s failed with %s backend: %s", label, name, e)
+            log.warning("[%s] %s backend failed: %s", label, name, e)
             errors.append(f"{name}: {e}")
     raise RuntimeError(
         f"All backends failed for {label}:\n" +
@@ -284,8 +326,12 @@ def _try_backends(backend_map: dict, *args, label: str = '') -> any:
 def fetch_video_metadata(video_id: str) -> dict:
     """Fetch video title, channel, and duration. Tries backends in config order."""
     log.info("Fetching metadata for video: %s", video_id)
-    meta = _try_backends(_METADATA_BACKENDS, video_id, label=f"metadata:{video_id}")
-    log.info("Metadata OK: \"%s\" by %s (duration=%s)", meta['title'], meta['channel'], meta['duration'])
+    meta, backend = _try_backends(_METADATA_BACKENDS, video_id, label=f"metadata:{video_id}")
+    log.info(
+        "Metadata OK [%s]: \"%s\" by %s (duration=%s, uploaded=%s, views=%s)",
+        backend, meta['title'], meta['channel'],
+        meta.get('duration'), meta.get('upload_date'), meta.get('view_count'),
+    )
     return meta
 
 
@@ -326,7 +372,9 @@ def fetch_transcript(video_id: str, include_timestamps: bool = True) -> list[dic
 
 def fetch_transcript_subtitles(video_id: str) -> list[dict]:
     """Fetch subtitles using the configured video backend. Returns list of {text, start, duration} dicts."""
-    return _try_backends(_SUBTITLE_BACKENDS, video_id, label=f"subtitles:{video_id}")
+    result, backend = _try_backends(_SUBTITLE_BACKENDS, video_id, label=f"subtitles:{video_id}")
+    log.info("Subtitles OK [%s]: %d snippets for %s", backend, len(result), video_id)
+    return result
 
 
 def fetch_transcript_whisper(video_id: str, emit_fn=None) -> list[dict]:
@@ -355,7 +403,8 @@ def fetch_transcript_whisper(video_id: str, emit_fn=None) -> list[dict]:
         if emit_fn:
             emit_fn('status', message='Downloading audio for Whisper transcription...')
 
-        audio_path = _try_backends(_AUDIO_BACKENDS, video_id, tmpdir, label=f"audio:{video_id}")
+        audio_path, audio_backend = _try_backends(_AUDIO_BACKENDS, video_id, tmpdir, label=f"audio:{video_id}")
+        log.info("Audio downloaded [%s]: %s", audio_backend, audio_path)
 
         if emit_fn:
             emit_fn('status', message=f'Transcribing with Whisper ({model_name}/{device})... this may take a while.')
@@ -441,13 +490,17 @@ def fetch_transcript_auto(
             )
 
         try:
+            log.info("[transcription:%s] trying method: %s", video_id, method_name)
             if emit_fn:
                 emit_fn('status', message=f'Trying {method_name} for transcript...')
             transcript = fn(video_id, include_timestamps, emit_fn)
-            log.info("Method %s succeeded for %s", method_name, video_id)
+            log.info(
+                "[transcription:%s] succeeded with %s (%d snippets)",
+                video_id, method_name, len(transcript),
+            )
             return transcript, method_name
         except Exception as e:
-            log.warning("Method %s failed for %s: %s", method_name, video_id, e)
+            log.warning("[transcription:%s] %s failed: %s", video_id, method_name, e)
             errors.append(f"{method_name}: {e}")
             if method_name == 'youtube_transcript_api':
                 yt_api_failed = True

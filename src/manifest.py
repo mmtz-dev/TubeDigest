@@ -82,6 +82,7 @@ def update_entry(
     title: str,
     transcript_rel: str,
     summary_rel: str | None,
+    metadata: dict | None = None,
 ) -> None:
     """Add or update a manifest entry in place."""
     entry = {
@@ -91,6 +92,21 @@ def update_entry(
     }
     if summary_rel is not None:
         entry['summary'] = summary_rel
+
+    if metadata:
+        if metadata.get('channel'):
+            entry['channel'] = metadata['channel']
+        if metadata.get('upload_date'):
+            entry['upload_date'] = metadata['upload_date']
+        if metadata.get('duration') is not None:
+            entry['duration'] = metadata['duration']
+        if metadata.get('view_count') is not None:
+            entry['view_count'] = metadata['view_count']
+        if metadata.get('tags'):
+            entry['tags'] = metadata['tags']
+        if metadata.get('categories'):
+            entry['categories'] = metadata['categories']
+
     manifest[video_id] = entry
 
 

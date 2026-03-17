@@ -36,19 +36,51 @@ def format_transcript_content(
     video_id: str,
     transcript: list[dict],
     include_timestamps: bool = True,
+    metadata: dict | None = None,
 ) -> str:
     """Format transcript into the output .txt content."""
     today = date.today().isoformat()
     url = f'https://www.youtube.com/watch?v={video_id}'
     separator = '\u2500' * 44  # ────────────
+    meta = metadata or {}
 
     lines = [
-        f'Title:    {title}',
-        f'Video ID: {video_id}',
-        f'URL:      {url}',
-        f'Date:     {today}',
-        separator,
+        f'Title:       {title}',
+        f'Channel:     {meta.get("channel", "Unknown")}',
+        f'Video ID:    {video_id}',
+        f'URL:         {url}',
     ]
+
+    if meta.get('upload_date'):
+        lines.append(f'Upload Date: {meta["upload_date"]}')
+
+    lines.append(f'Saved:       {today}')
+
+    if meta.get('duration') is not None:
+        lines.append(f'Duration:    {format_timestamp(meta["duration"])}')
+
+    if meta.get('view_count') is not None:
+        lines.append(f'Views:       {meta["view_count"]:,}')
+
+    if meta.get('tags'):
+        lines.append(f'Tags:        {", ".join(meta["tags"])}')
+
+    if meta.get('categories'):
+        lines.append(f'Categories:  {", ".join(meta["categories"])}')
+
+    if meta.get('chapters'):
+        lines.append('')
+        lines.append('Chapters:')
+        for ch in meta['chapters']:
+            ts = format_timestamp(ch['start'])
+            lines.append(f'  {ts} {ch["title"]}')
+
+    if meta.get('description'):
+        lines.append('')
+        lines.append('Description:')
+        lines.append(meta['description'])
+
+    lines.append(separator)
 
     for entry in transcript:
         text = entry['text']
