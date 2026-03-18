@@ -1,7 +1,10 @@
 """Listing transcripts and saving/reading summaries."""
 
+import logging
 import os
 from datetime import date
+
+log = logging.getLogger(__name__)
 
 from src.storage import TRANSCRIPTIONS_DIR, SUMMARIES_DIR
 
@@ -70,4 +73,5 @@ def save_summary(rel_path: str, summary_text: str, provider: str) -> str:
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     with open(full_path, 'w', encoding='utf-8') as f:
         f.write(header + summary_text + '\n')
+    log.info("Saved summary: %s", full_path)
     return full_path

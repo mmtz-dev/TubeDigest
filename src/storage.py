@@ -1,8 +1,11 @@
 """File naming, formatting, and saving transcripts."""
 
+import logging
 import os
 import re
 from datetime import date
+
+log = logging.getLogger(__name__)
 
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -115,4 +118,5 @@ def save_transcript(
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
 
+    log.info("Saved transcript: %s", filepath)
     return filepath
