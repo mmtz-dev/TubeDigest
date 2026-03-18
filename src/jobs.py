@@ -1,6 +1,7 @@
 """Background job manager with threading and queue-based progress reporting."""
 
 import logging
+import os
 import threading
 import uuid
 from queue import Queue
@@ -158,6 +159,12 @@ class JobManager:
             job['total'] = total
             self._emit(job_id, 'total', count=total)
 
+            original_subdirs: set[str] = set()
+            for p in paths:
+                parent = os.path.dirname(p)
+                if parent:
+                    original_subdirs.add(parent)
+
             if total == 0:
                 self._emit(job_id, 'error', current=0, video_id='', message='No transcripts selected.')
                 self._finish_job(job_id)
@@ -222,6 +229,15 @@ class JobManager:
                         current=i, video_id='',
                         message=f'{rel_path}: {result.error}',
                     )
+
+            if auto_categorize and original_subdirs:
+                from src.storage import cleanup_empty_subdirs
+                removed_t = cleanup_empty_subdirs(BASE_DIR, original_subdirs)
+                removed_s = cleanup_empty_subdirs(SUMMARIES_DIR, original_subdirs)
+                if removed_t or removed_s:
+                    all_removed = sorted(set(removed_t + removed_s))
+                    log.info("Cleaned up empty subfolders: %s", ', '.join(all_removed))
+
         except Exception as e:
             self._emit(job_id, 'error', current=0, video_id='', message=f'Job failed: {e}')
 

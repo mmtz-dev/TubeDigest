@@ -120,3 +120,19 @@ def save_transcript(
 
     log.info("Saved transcript: %s", filepath)
     return filepath
+
+
+def cleanup_empty_subdirs(base_dir: str, subdirs: set[str]) -> list[str]:
+    """Remove empty subdirectories from base_dir. Returns names of removed dirs."""
+    removed = []
+    for subdir in subdirs:
+        dir_path = os.path.join(base_dir, subdir)
+        if not os.path.isdir(dir_path):
+            continue
+        try:
+            if not os.listdir(dir_path):
+                os.rmdir(dir_path)
+                removed.append(subdir)
+        except OSError:
+            pass
+    return removed
