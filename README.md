@@ -71,6 +71,7 @@ python3 cli.py URL1 --force
 | `--summaries-dir DIR` | | Output directory for summaries |
 | `--force` | | Reprocess even if already done |
 | `--no-timestamps` | | Omit timestamps from transcripts |
+| `--categorize` | | Auto-categorize into category subfolders (requires `-s`) |
 | `--quiet` | `-q` | Suppress progress output |
 
 ### Duplicate Detection
@@ -90,6 +91,7 @@ If files are moved to different subfolders, the manifest self-heals by searching
 - **Transcript downloading** — Fetches captions from YouTube videos, Shorts, and playlists
 - **Multi-method fallback** — youtube-transcript-api → pytubefix/yt-dlp subtitles → local Whisper transcription
 - **Switchable video backend** — pytubefix (default) or yt-dlp for metadata, subtitles, audio, and playlists — configurable with automatic fallback
+- **Auto-categorization** — AI reads summaries and organizes files into category subfolders (reuses existing categories when appropriate)
 - **AI summarization** — Summarize transcripts using Claude CLI, Claude Proxy, Gemini, or Ollama
 - **Real-time progress** — Server-Sent Events stream status updates to the browser
 - **Batch processing** — Process multiple videos or entire playlists with rate limiting
@@ -142,6 +144,17 @@ To switch to yt-dlp as the primary backend, change the order:
 ```yaml
 video_backend: [ytdlp, pytubefix]
 ```
+
+### Categorization Settings (`config.yaml`)
+
+After summarization, the AI can automatically assign a category and move files into `Transcriptions/<Category>/` and `Summaries/<Category>/` subfolders. It checks existing category folders first and reuses one if appropriate; otherwise it creates a new one.
+
+```yaml
+categorization:
+  enabled: true   # set to false to disable auto-categorization
+```
+
+Categorization is non-fatal — if it fails, the summary and transcript remain in place. Use the `--categorize` CLI flag to force it on regardless of the config setting.
 
 ### Summarization Settings (`config.yaml`)
 
@@ -213,6 +226,7 @@ Both Docker and local modes respect this variable.
 │   ├── storage.py         # Transcript formatting, file saving, directory constants
 │   ├── jobs.py            # Background job manager (web only)
 │   ├── manifest.py        # Duplicate detection manifest
+│   ├── categorizer.py     # AI auto-categorization logic
 │   ├── summarizer.py      # AI summarization provider abstraction
 │   ├── summary_storage.py # Summary file management
 │   ├── config.py          # YAML config loading

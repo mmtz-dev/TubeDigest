@@ -39,6 +39,11 @@ def parse_args() -> argparse.Namespace:
         help='Generate AI summaries after transcription',
     )
     parser.add_argument(
+        '--categorize',
+        action='store_true',
+        help='Auto-categorize transcripts/summaries into category subfolders (requires --summarize)',
+    )
+    parser.add_argument(
         '--force',
         action='store_true',
         help='Reprocess even if already in manifest',
@@ -93,8 +98,9 @@ def main() -> None:
         os.environ['SUMMARIES_DIR'] = os.path.abspath(args.summaries_dir)
 
     # Late imports so the env vars set above take effect in module-level constants
+    from src.config import get_categorization_config
     from src.manifest import load_manifest, save_manifest
-    from src.pipeline import expand_urls, process_video, process_summary, apply_rate_limit
+    from src.pipeline import expand_urls, process_video, process_summary, process_categorization, apply_rate_limit
     from src.storage import TRANSCRIPTIONS_DIR, SUMMARIES_DIR
 
     transcriptions_dir = TRANSCRIPTIONS_DIR
@@ -129,6 +135,7 @@ def main() -> None:
     total = len(videos)
     succeeded = skipped = failed = 0
     include_timestamps = not args.no_timestamps
+    auto_categorize = args.categorize or get_categorization_config().get('enabled', False)
 
     for i, target in enumerate(videos, start=1):
         prefix = f'[{i}/{total}]'
@@ -162,6 +169,18 @@ def main() -> None:
                     failed += 1
                     continue
                 save_manifest(transcriptions_dir, manifest)
+
+                if auto_categorize and sr.outcome == 'ok':
+                    cat_result = process_categorization(
+                        result.transcript_rel, sr.summary_rel,
+                        manifest, transcriptions_dir, summaries_dir,
+                        emit_fn=emit,
+                    )
+                    if cat_result.outcome == 'ok':
+                        save_manifest(transcriptions_dir, manifest)
+                        log(quiet, f'{prefix} Categorized as: {cat_result.category}')
+                    elif cat_result.outcome == 'error':
+                        log(quiet, f'{prefix} WARNING: categorization failed — {cat_result.error}')
 
             log(quiet, f'{prefix} Done: "{result.title}"')
             succeeded += 1

@@ -8,7 +8,7 @@ from queue import Queue
 log = logging.getLogger(__name__)
 
 from src.manifest import load_manifest, save_manifest
-from src.pipeline import expand_urls, process_video, process_summary, apply_rate_limit
+from src.pipeline import expand_urls, process_video, process_summary, process_categorization, apply_rate_limit
 from src.storage import BASE_DIR
 from src.summary_storage import SUMMARIES_DIR
 
@@ -166,6 +166,9 @@ class JobManager:
             def emit(event_type, **data):
                 self._emit(job_id, event_type, **data)
 
+            from src.config import get_categorization_config
+            auto_categorize = get_categorization_config().get('enabled', False)
+
             with self._manifest_lock:
                 manifest = load_manifest(BASE_DIR)
 
@@ -194,6 +197,22 @@ class JobManager:
                         message=f'Already summarized: {rel_path}',
                     )
                 elif result.outcome == 'ok':
+                    if auto_categorize:
+                        with self._manifest_lock:
+                            cat_result = process_categorization(
+                                rel_path, result.summary_rel,
+                                manifest, BASE_DIR, SUMMARIES_DIR,
+                                emit_fn=emit,
+                            )
+                            if cat_result.outcome == 'ok':
+                                save_manifest(BASE_DIR, manifest)
+                            elif cat_result.outcome == 'error':
+                                log.warning("Categorization failed for %s: %s", rel_path, cat_result.error)
+                                self._emit(
+                                    job_id, 'warning',
+                                    current=i, video_id='',
+                                    message=f'Categorization failed: {cat_result.error}',
+                                )
                     job['succeeded'] += 1
                     self._emit(job_id, 'success', current=i, title=rel_path)
                 else:

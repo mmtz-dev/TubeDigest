@@ -22,6 +22,9 @@ DEFAULTS = {
         'whisper_device': 'auto',
         'subtitle_langs': ['en', 'en-US', 'en-GB'],
     },
+    'categorization': {
+        'enabled': True,
+    },
     'summarization': {
         'providers': ['claude_cli', 'claude_proxy', 'gemini', 'ollama'],
         'gemini_model': 'gemini-2.0-flash',
@@ -73,3 +76,8 @@ def get_transcription_config() -> dict:
 def get_summarization_config() -> dict:
     """Shortcut to get the summarization section."""
     return load_config()['summarization']
+
+
+def get_categorization_config() -> dict:
+    """Shortcut to get the categorization section."""
+    return load_config()['categorization']

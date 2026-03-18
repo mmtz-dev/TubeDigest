@@ -5,6 +5,7 @@ import random
 import time
 from dataclasses import dataclass
 
+from src.categorizer import categorize, move_to_category, scan_existing_categories
 from src.fetcher import extract_video_id, fetch_video_metadata, fetch_transcript_auto
 from src.manifest import check_status, find_file_recursive, find_video_id_for_transcript, update_entry
 from src.playlist import is_playlist_url, extract_playlist_videos
@@ -31,6 +32,15 @@ class SummaryResult:
     outcome: str  # 'ok', 'skip', 'error'
     summary_rel: str = ''
     provider: str = ''
+    error: str = ''
+
+
+@dataclass
+class CategorizationResult:
+    outcome: str  # 'ok', 'skip', 'error'
+    category: str = ''
+    new_transcript_rel: str = ''
+    new_summary_rel: str = ''
     error: str = ''
 
 
@@ -153,6 +163,64 @@ def process_summary(
 
     except Exception as e:
         return SummaryResult('error', error=str(e))
+
+
+def process_categorization(
+    transcript_rel: str,
+    summary_rel: str,
+    manifest: dict,
+    transcriptions_dir: str,
+    summaries_dir: str,
+    emit_fn=None,
+) -> CategorizationResult:
+    """Categorize a summarized video and move files into category subfolders."""
+    emit = emit_fn or _noop_emit
+
+    try:
+        # Read the summary file
+        summary_path = os.path.join(summaries_dir, summary_rel)
+        if not os.path.isfile(summary_path):
+            return CategorizationResult('error', error=f'Summary not found: {summary_rel}')
+
+        with open(summary_path, 'r', encoding='utf-8') as f:
+            summary_text = f.read()
+
+        # Get video title from manifest
+        video_id = find_video_id_for_transcript(manifest, transcript_rel, '')
+        if video_id:
+            video_title = manifest.get(video_id, {}).get('title', os.path.basename(transcript_rel))
+        else:
+            video_title = os.path.basename(transcript_rel)
+
+        # Scan existing category folders
+        existing = scan_existing_categories(transcriptions_dir)
+
+        # Ask AI for category
+        from src.config import get_categorization_config
+        cfg = get_categorization_config()
+        category = categorize(summary_text, video_title, existing, cfg, emit_fn=emit)
+
+        # Move files into category subfolder
+        new_transcript_rel, new_summary_rel = move_to_category(
+            transcript_rel, summary_rel, category,
+            transcriptions_dir, summaries_dir,
+        )
+
+        # Update manifest entry in-place
+        if video_id and video_id in manifest:
+            manifest[video_id]['transcript'] = new_transcript_rel
+            manifest[video_id]['summary'] = new_summary_rel
+            manifest[video_id]['category'] = category
+
+        emit('status', message=f'Categorized as: {category}')
+        return CategorizationResult(
+            'ok', category=category,
+            new_transcript_rel=new_transcript_rel,
+            new_summary_rel=new_summary_rel,
+        )
+
+    except Exception as e:
+        return CategorizationResult('error', error=str(e))
 
 
 def apply_rate_limit(index: int, total: int, emit_fn=None):

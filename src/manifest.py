@@ -84,8 +84,14 @@ def update_entry(
     summary_rel: str | None,
     metadata: dict | None = None,
 ) -> None:
-    """Add or update a manifest entry in place."""
+    """Add or update a manifest entry in place.
+
+    Merges with the existing entry to preserve fields like 'category'
+    that aren't passed as parameters.
+    """
+    existing = manifest.get(video_id, {})
     entry = {
+        **existing,
         'title': title,
         'date': date.today().isoformat(),
         'transcript': transcript_rel,
