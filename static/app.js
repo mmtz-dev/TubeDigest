@@ -302,7 +302,9 @@ function listenToSummaryProgress(jobId) {
             case 'total':
                 total = msg.count;
                 setSummaryProgress(0, total);
-                summaryLog(`Processing ${total} transcript(s)...`);
+                if (total > 0) {
+                    summaryLog(`Summarizing ${total} transcript(s)...`);
+                }
                 break;
 
             case 'status':

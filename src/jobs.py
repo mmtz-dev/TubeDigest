@@ -8,10 +8,10 @@ from queue import Queue
 
 log = logging.getLogger(__name__)
 
-from src.manifest import load_manifest, save_manifest
+from src.manifest import load_manifest, save_manifest, find_file_recursive
 from src.pipeline import expand_urls, process_video, process_summary, process_categorization, apply_rate_limit
 from src.storage import BASE_DIR
-from src.summary_storage import SUMMARIES_DIR
+from src.summary_storage import SUMMARIES_DIR, derive_summary_rel_path
 
 
 class JobManager:
@@ -155,23 +155,37 @@ class JobManager:
     def _process_summarization_job(self, job_id: str, paths: list[str]):
         job = self._jobs[job_id]
         try:
-            total = len(paths)
+            def emit(event_type, **data):
+                self._emit(job_id, event_type, **data)
+
+            # Pre-filter: remove already-summarized transcripts
+            needs_summary = []
+            already_done = []
+            for rel_path in paths:
+                summary_rel = derive_summary_rel_path(rel_path)
+                if find_file_recursive(SUMMARIES_DIR, summary_rel):
+                    already_done.append(rel_path)
+                else:
+                    needs_summary.append(rel_path)
+
+            if already_done:
+                log.info("Pre-filtered %d already-summarized transcript(s)", len(already_done))
+                emit('status', message=f'{len(already_done)} transcript(s) already summarized, skipping.')
+
+            total = len(needs_summary)
             job['total'] = total
             self._emit(job_id, 'total', count=total)
 
             original_subdirs: set[str] = set()
-            for p in paths:
+            for p in needs_summary:
                 parent = os.path.dirname(p)
                 if parent:
                     original_subdirs.add(parent)
 
             if total == 0:
-                self._emit(job_id, 'error', current=0, video_id='', message='No transcripts selected.')
+                emit('status', message='All selected transcripts are already summarized.')
                 self._finish_job(job_id)
                 return
-
-            def emit(event_type, **data):
-                self._emit(job_id, event_type, **data)
 
             from src.config import get_categorization_config
             auto_categorize = get_categorization_config().get('enabled', False)
@@ -179,7 +193,7 @@ class JobManager:
             with self._manifest_lock:
                 manifest = load_manifest(BASE_DIR)
 
-            for i, rel_path in enumerate(paths, 1):
+            for i, rel_path in enumerate(needs_summary, 1):
                 self._emit(
                     job_id, 'progress',
                     current=i, total=total,
@@ -195,14 +209,9 @@ class JobManager:
                         save_manifest(BASE_DIR, manifest)
 
                 if result.outcome == 'skip':
-                    log.info("Skipping summarization — summary already exists: %s", result.summary_rel)
+                    # Race-condition safety net — count as success silently
                     job['succeeded'] += 1
-                    self._emit(
-                        job_id, 'success',
-                        current=i, title=rel_path,
-                        skipped=True,
-                        message=f'Already summarized: {rel_path}',
-                    )
+                    self._emit(job_id, 'success', current=i, title=rel_path)
                 elif result.outcome == 'ok':
                     if auto_categorize:
                         with self._manifest_lock:
