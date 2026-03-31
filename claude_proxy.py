@@ -54,7 +54,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             import os
             env = {k: v for k, v in os.environ.items() if k != 'CLAUDECODE'}
             result = subprocess.run(
-                ['claude', '-p', prompt],
+                ['claude', '-p', prompt, '--model', 'claude-sonnet-4-6'],
                 input=text,
                 capture_output=True,
                 text=True,
