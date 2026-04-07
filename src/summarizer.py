@@ -143,11 +143,12 @@ class ClaudeProxyProvider(BaseProvider):
     def get_setup_hint(self) -> str | None:
         return (
             'Claude proxy is not reachable. '
-            'Start it on the host: python claude_proxy.py'
+            'Start with Docker: docker compose --profile linux up, '
+            'or on the host: python claude_proxy.py'
         )
 
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
-        base_url = cfg.get('claude_proxy_url', self._base_url())
+        base_url = self._base_url()
         payload = json.dumps({'prompt': prompt, 'text': transcript_text}).encode()
 
         req = urllib.request.Request(

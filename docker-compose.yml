@@ -1,8 +1,28 @@
 services:
+  claude-proxy:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.claude-proxy
+    container_name: yt-claude-proxy
+    restart: unless-stopped
+    profiles: [linux]
+    volumes:
+      - ${HOME}/.local/share/claude/versions:/opt/claude-versions:ro
+      - ${HOME}/.claude:/root/.claude:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9100/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   tubedigest:
     build: .
     container_name: tubedigest
     restart: unless-stopped
+    depends_on:
+      claude-proxy:
+        condition: service_healthy
+        required: false
     ports:
       - "${PORT:-5555}:5555"
     volumes:
@@ -14,6 +34,7 @@ services:
     environment:
       - RUNNING_IN_DOCKER=true
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - CLAUDE_PROXY_URL=http://claude-proxy:9100
       - XDG_CACHE_HOME=/home/.cache
       - XDG_DATA_HOME=/home/.local/share
       - PORT=${PORT:-5555}

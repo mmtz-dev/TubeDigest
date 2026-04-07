@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY claude_proxy.py /app/claude_proxy.py
+
+RUN printf '#!/bin/sh\n\
+LATEST=$(ls -v /opt/claude-versions/ 2>/dev/null | tail -1)\n\
+if [ -n "$LATEST" ]; then\n\
+  ln -sf "/opt/claude-versions/$LATEST" /usr/local/bin/claude\n\
+  echo "Linked Claude CLI version: $LATEST"\n\
+else\n\
+  echo "WARNING: No Claude CLI binary found in /opt/claude-versions/"\n\
+fi\n\
+exec python claude_proxy.py "$@"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+EXPOSE 9100
+ENTRYPOINT ["/app/entrypoint.sh"]
