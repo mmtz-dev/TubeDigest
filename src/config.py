@@ -26,11 +26,10 @@ DEFAULTS = {
         'enabled': True,
     },
     'summarization': {
-        'providers': ['claude_cli', 'claude_proxy', 'gemini', 'ollama'],
+        'providers': ['claude_cli', 'gemini', 'ollama'],
         'gemini_model': 'gemini-2.0-flash',
         'ollama_model': 'llama3.1',
         'ollama_url': 'http://localhost:11434',
-        'claude_proxy_url': 'http://host.docker.internal:9100',
         'prompt': (
             'Summarize the following YouTube video transcript concisely. '
             'Highlight the main topics, key points, and any conclusions or '

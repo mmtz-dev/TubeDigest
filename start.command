@@ -69,24 +69,8 @@ if [ -f .env ]; then
     fi
 fi
 
-# ── [4/6] Start Claude proxy if claude CLI is available ──────────
-echo "[4/6] Checking Claude Code CLI..."
-if command -v claude &>/dev/null; then
-    # Kill any existing proxy
-    pkill -f 'python.*claude_proxy\.py' 2>/dev/null || true
-    if [ -f claude_proxy.py ]; then
-        python claude_proxy.py &
-        CLAUDE_PROXY_PID=$!
-        echo "      Claude proxy started (PID $CLAUDE_PROXY_PID)"
-    else
-        echo "      claude_proxy.py not found, skipping."
-    fi
-else
-    echo "      Claude CLI not installed, skipping proxy."
-fi
-
-# ── [5/6] Build and start the container ──────────────────────────
-echo "[5/6] Building and starting TubeDigest (this may take a minute on first run)..."
+# ── [4/5] Build and start the container ──────────────────────────
+echo "[4/5] Building and starting TubeDigest (this may take a minute on first run)..."
 docker compose up --build -d
 
 # Wait for container to be healthy (up to 120s)
@@ -109,8 +93,8 @@ while true; do
 done
 echo ""
 
-# ── [6/6] Open in browser ────────────────────────────────────────
-echo "[6/6] Opening TubeDigest in your browser..."
+# ── [5/5] Open in browser ────────────────────────────────────────
+echo "[5/5] Opening TubeDigest in your browser..."
 open "http://localhost:$PORT"
 
 echo ""
