@@ -26,7 +26,7 @@ DEFAULTS = {
         'enabled': True,
     },
     'summarization': {
-        'providers': ['claude_cli', 'gemini', 'ollama'],
+        'providers': ['claude_proxy', 'gemini', 'ollama'],
         'gemini_model': 'gemini-2.0-flash',
         'ollama_model': 'llama3.1',
         'ollama_url': 'http://localhost:11434',

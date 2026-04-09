@@ -34,7 +34,9 @@ categorization:
 
 summarization:
   # Provider priority order (tried in order, falls back on failure)
-  providers: [claude_cli, gemini, ollama]
+  providers: [claude_proxy, gemini, ollama]
+
+  claude_model: "sonnet"
 
   gemini_model: "gemini-2.0-flash"
 

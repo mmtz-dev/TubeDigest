@@ -11,13 +11,12 @@ services:
       - ${SUMMARIES_DIR:-./Summaries}:${SUMMARIES_DIR:-/app/Summaries}
       - whisper-cache:/home/.cache/whisper
       - ytdlp-usage:/home/.local/share/tubedigest
-      - ${HOME}/.claude:/home/.claude:ro
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - RUNNING_IN_DOCKER=true
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - CLAUDE_CONFIG_DIR=/home/.claude
+      - CLAUDE_PROXY_URL=http://host.docker.internal:9100
       - XDG_CACHE_HOME=/home/.cache
       - XDG_DATA_HOME=/home/.local/share
       - PORT=${PORT:-5555}

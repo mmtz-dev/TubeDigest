@@ -88,6 +88,59 @@ class OllamaProvider(BaseProvider):
         return data['response']
 
 
+class ClaudeProxyProvider(BaseProvider):
+    name = 'claude_proxy'
+
+    def _proxy_url(self) -> str:
+        return os.environ.get('CLAUDE_PROXY_URL', 'http://localhost:9100').rstrip('/')
+
+    def is_available(self) -> bool:
+        try:
+            req = urllib.request.Request(f"{self._proxy_url()}/health", method='GET')
+            with urllib.request.urlopen(req, timeout=3) as r:
+                if r.status == 200:
+                    data = json.loads(r.read())
+                    return data.get('claude_available', False)
+        except Exception:
+            pass
+        return False
+
+    def get_setup_hint(self) -> str | None:
+        try:
+            urllib.request.urlopen(
+                urllib.request.Request(f"{self._proxy_url()}/health"), timeout=3
+            )
+        except Exception:
+            return (
+                f'Claude proxy not reachable at {self._proxy_url()}. '
+                'Start the standalone claude-proxy Docker service.'
+            )
+        return 'Claude proxy is running but reports claude CLI unavailable.'
+
+    def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
+        full_prompt = f"{prompt}\n\n{transcript_text}"
+        payload = json.dumps({
+            'prompt': full_prompt,
+            'model': cfg.get('claude_model', 'sonnet'),
+            'timeout': 300,
+        }).encode()
+        req = urllib.request.Request(
+            f"{self._proxy_url()}/generate",
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=330) as r:
+                data = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"Claude proxy error {e.code}: {e.read().decode()}")
+        if 'error' in data:
+            raise RuntimeError(f"Claude proxy returned error: {data['error']}")
+        result = data.get('result', '')
+        return result if isinstance(result, str) else json.dumps(result)
+
+
 class ClaudeCLIProvider(BaseProvider):
     name = 'claude_cli'
 
@@ -122,6 +175,7 @@ class ClaudeCLIProvider(BaseProvider):
 
 
 PROVIDER_REGISTRY: dict[str, type[BaseProvider]] = {
+    'claude_proxy': ClaudeProxyProvider,
     'gemini': GeminiProvider,
     'ollama': OllamaProvider,
     'claude_cli': ClaudeCLIProvider,
