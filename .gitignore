@@ -34,3 +34,4 @@ Summaries/
 .DS_Store
 Thumbs.db
 ai-llm-resources
+.claude/

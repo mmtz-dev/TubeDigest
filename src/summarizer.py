@@ -3,8 +3,6 @@
 import json
 import logging
 import os
-import shutil
-import subprocess
 import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
@@ -88,43 +86,59 @@ class OllamaProvider(BaseProvider):
         return data['response']
 
 
-class ClaudeCLIProvider(BaseProvider):
-    name = 'claude_cli'
+class ClaudeProxyProvider(BaseProvider):
+    name = 'claude_proxy'
 
     def is_available(self) -> bool:
-        return shutil.which('claude') is not None
+        proxy_url = self._get_proxy_url({})
+        try:
+            req = urllib.request.Request(f"{proxy_url}/health", method='GET')
+            resp = urllib.request.urlopen(req, timeout=5)
+            data = json.loads(resp.read())
+            return data.get('claude_available') is True
+        except Exception:
+            return False
 
     def get_setup_hint(self) -> str | None:
-        if not shutil.which('claude'):
-            return (
-                'Claude Code is not installed. '
-                'Install it from: https://docs.anthropic.com/en/docs/claude-code/getting-started'
-            )
-        return None
+        return (
+            'Claude-Proxy is not reachable. '
+            'Ensure the claude-proxy container is running on the claude-proxy-net network.'
+        )
 
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
-        result = subprocess.run(
-            ['claude', '-p', prompt],
-            input=transcript_text,
-            capture_output=True,
-            text=True,
-            timeout=300,
+        proxy_url = self._get_proxy_url(cfg)
+        payload = json.dumps({
+            'prompt': f"{prompt}\n\n{transcript_text}",
+            'model': cfg.get('claude_model', 'sonnet'),
+            'timeout': 300,
+        }).encode()
+
+        req = urllib.request.Request(
+            f"{proxy_url}/generate",
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST',
         )
-        if result.returncode != 0:
-            stderr = result.stderr.strip()
-            if any(kw in stderr.lower() for kw in ('auth', 'log in', 'login', 'sign in', 'api key', 'not authenticated')):
-                raise RuntimeError(
-                    'Claude Code is not logged in. '
-                    'Run "claude" in your terminal to authenticate.'
-                )
-            raise RuntimeError(f"Claude CLI failed: {stderr}")
-        return result.stdout.strip()
+        resp = urllib.request.urlopen(req, timeout=330)
+        data = json.loads(resp.read())
+
+        if 'error' in data:
+            raise RuntimeError(f"Claude-Proxy error: {data['error']}")
+
+        return data['result']
+
+    def _get_proxy_url(self, cfg: dict) -> str:
+        return (
+            cfg.get('claude_proxy_url')
+            or os.environ.get('CLAUDE_PROXY_URL')
+            or 'http://claude-proxy:9100'
+        )
 
 
 PROVIDER_REGISTRY: dict[str, type[BaseProvider]] = {
     'gemini': GeminiProvider,
     'ollama': OllamaProvider,
-    'claude_cli': ClaudeCLIProvider,
+    'claude_proxy': ClaudeProxyProvider,
 }
 
 
@@ -133,7 +147,7 @@ def summarize(transcript_text: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
 
     Falls back to the next provider on failure, matching the pattern in fetch_transcript_auto.
     """
-    provider_names = cfg.get('providers', ['claude_cli', 'gemini', 'ollama'])
+    provider_names = cfg.get('providers', ['claude_proxy', 'gemini', 'ollama'])
     prompt = cfg.get('prompt', 'Summarize this transcript.')
     errors = []
 

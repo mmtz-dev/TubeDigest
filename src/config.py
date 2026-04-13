@@ -26,7 +26,9 @@ DEFAULTS = {
         'enabled': True,
     },
     'summarization': {
-        'providers': ['claude_cli', 'gemini', 'ollama'],
+        'providers': ['claude_proxy', 'gemini', 'ollama'],
+        'claude_proxy_url': 'http://claude-proxy:9100',
+        'claude_model': 'sonnet',
         'gemini_model': 'gemini-2.0-flash',
         'ollama_model': 'llama3.1',
         'ollama_url': 'http://localhost:11434',
