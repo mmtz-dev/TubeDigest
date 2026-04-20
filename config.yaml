@@ -48,3 +48,25 @@ summarization:
     Summarize the following YouTube video transcript concisely.
     Highlight the main topics, key points, and any conclusions or
     takeaways. Use clear headings and bullet points where appropriate.
+
+chat:
+  # Providers for multi-turn chat about a video (shares claude-proxy/gemini/ollama).
+  providers: [claude_proxy, gemini, ollama]
+
+  claude_proxy_url: "http://claude-proxy:9100"
+  claude_model: "sonnet"
+  gemini_model: "gemini-2.0-flash"
+  ollama_model: "llama3.1"
+  ollama_url: "http://localhost:11434"
+
+  system_prompt: >
+    You are an expert assistant answering questions about this YouTube video.
+    Use ONLY the provided summary and transcript. Say "I don't know" if the
+    answer isn't there.
+
+  # Cap kept history to avoid prompt bloat (1 user+1 assistant = 2 turns).
+  max_history_turns: 20
+
+  # Hard prompt character budget. Transcripts longer than this have their
+  # middle truncated; summary + history + current turn stay intact.
+  max_prompt_chars: 400000

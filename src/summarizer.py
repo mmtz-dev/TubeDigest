@@ -1,4 +1,9 @@
-"""AI summarization providers with fallback chain."""
+"""AI text-generation providers with fallback chain.
+
+Used for both one-shot summarization and multi-turn chat. Providers implement
+`generate(prompt, cfg)`; `summarize()` is a thin wrapper that also builds the
+summarization prompt. `run_providers()` is the shared fallback loop.
+"""
 
 import json
 import logging
@@ -11,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 class BaseProvider(ABC):
-    """Interface for summarization providers."""
+    """Interface for text-generation providers."""
 
     name: str = ''
 
@@ -24,8 +29,12 @@ class BaseProvider(ABC):
         return None
 
     @abstractmethod
+    def generate(self, prompt: str, cfg: dict) -> str:
+        """Generate text from a fully-assembled prompt."""
+
     def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
-        """Generate a summary. Returns the summary text."""
+        """Summarize transcript by concatenating prompt and transcript."""
+        return self.generate(f"{prompt}\n\n{transcript_text}", cfg)
 
 
 class GeminiProvider(BaseProvider):
@@ -39,13 +48,12 @@ class GeminiProvider(BaseProvider):
             return 'GEMINI_API_KEY not set. Add it to your .env file.'
         return None
 
-    def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
+    def generate(self, prompt: str, cfg: dict) -> str:
         from google import genai
 
         client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
         model = cfg.get('gemini_model', 'gemini-2.0-flash')
-        full_prompt = f"{prompt}\n\n{transcript_text}"
-        response = client.models.generate_content(model=model, contents=full_prompt)
+        response = client.models.generate_content(model=model, contents=prompt)
         return response.text
 
 
@@ -64,14 +72,13 @@ class OllamaProvider(BaseProvider):
     def get_setup_hint(self) -> str | None:
         return 'Ollama is not running. Start it or install from https://ollama.com'
 
-    def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
+    def generate(self, prompt: str, cfg: dict) -> str:
         base_url = cfg.get('ollama_url', 'http://localhost:11434')
         model = cfg.get('ollama_model', 'llama3.1')
-        full_prompt = f"{prompt}\n\n{transcript_text}"
 
         payload = json.dumps({
             'model': model,
-            'prompt': full_prompt,
+            'prompt': prompt,
             'stream': False,
         }).encode()
 
@@ -105,10 +112,10 @@ class ClaudeProxyProvider(BaseProvider):
             'Ensure the claude-proxy container is running on the claude-proxy-net network.'
         )
 
-    def summarize(self, transcript_text: str, prompt: str, cfg: dict) -> str:
+    def generate(self, prompt: str, cfg: dict) -> str:
         proxy_url = self._get_proxy_url(cfg)
         payload = json.dumps({
-            'prompt': f"{prompt}\n\n{transcript_text}",
+            'prompt': prompt,
             'model': cfg.get('claude_model', 'sonnet'),
             'timeout': 300,
         }).encode()
@@ -142,19 +149,18 @@ PROVIDER_REGISTRY: dict[str, type[BaseProvider]] = {
 }
 
 
-def summarize(transcript_text: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
-    """Try each configured provider in order, return (summary_text, provider_name).
+def run_providers(prompt: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
+    """Try each configured provider in order, return (text, provider_name).
 
-    Falls back to the next provider on failure, matching the pattern in fetch_transcript_auto.
+    Falls back to the next provider on failure. Shared by summarization and chat.
     """
     provider_names = cfg.get('providers', ['claude_proxy', 'gemini', 'ollama'])
-    prompt = cfg.get('prompt', 'Summarize this transcript.')
     errors = []
 
     for name in provider_names:
         cls = PROVIDER_REGISTRY.get(name)
         if not cls:
-            log.warning("Unknown summarization provider: %s", name)
+            log.warning("Unknown provider: %s", name)
             continue
 
         provider = cls()
@@ -174,11 +180,11 @@ def summarize(transcript_text: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
 
         try:
             if emit_fn:
-                emit_fn('status', message=f'Summarizing with {name}...')
-            log.info("Attempting summarization with %s", name)
-            summary = provider.summarize(transcript_text, prompt, cfg)
-            log.info("Summarization succeeded with %s", name)
-            return summary, name
+                emit_fn('status', message=f'Generating with {name}...')
+            log.info("Attempting generation with %s", name)
+            text = provider.generate(prompt, cfg)
+            log.info("Generation succeeded with %s", name)
+            return text, name
         except Exception as e:
             log.warning("Provider %s failed: %s", name, e)
             errors.append(f"{name}: {e}")
@@ -186,6 +192,13 @@ def summarize(transcript_text: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
                 emit_fn('status', message=f'Provider {name} failed, trying next...')
 
     raise RuntimeError(
-        "All summarization providers failed:\n" +
+        "All providers failed:\n" +
         "\n".join(f"  - {err}" for err in errors)
     )
+
+
+def summarize(transcript_text: str, cfg: dict, emit_fn=None) -> tuple[str, str]:
+    """Summarize a transcript via the provider chain. Returns (summary, provider_name)."""
+    prompt_preamble = cfg.get('prompt', 'Summarize this transcript.')
+    full_prompt = f"{prompt_preamble}\n\n{transcript_text}"
+    return run_providers(full_prompt, cfg, emit_fn=emit_fn)

@@ -38,6 +38,21 @@ DEFAULTS = {
             'takeaways. Use clear headings and bullet points where appropriate.'
         ),
     },
+    'chat': {
+        'providers': ['claude_proxy', 'gemini', 'ollama'],
+        'claude_proxy_url': 'http://claude-proxy:9100',
+        'claude_model': 'sonnet',
+        'gemini_model': 'gemini-2.0-flash',
+        'ollama_model': 'llama3.1',
+        'ollama_url': 'http://localhost:11434',
+        'system_prompt': (
+            'You are an expert assistant answering questions about this YouTube video. '
+            'Use ONLY the provided summary and transcript. '
+            'Say "I don\'t know" if the answer isn\'t there.'
+        ),
+        'max_history_turns': 20,
+        'max_prompt_chars': 400000,
+    },
 }
 
 _cached: dict | None = None
@@ -82,3 +97,8 @@ def get_summarization_config() -> dict:
 def get_categorization_config() -> dict:
     """Shortcut to get the categorization section."""
     return load_config()['categorization']
+
+
+def get_chat_config() -> dict:
+    """Shortcut to get the chat section."""
+    return load_config()['chat']

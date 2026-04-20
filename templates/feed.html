@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feed — TubeDigest</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">TubeDigest</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/feed" class="nav-link active">Feed</a>
+                <a href="/categories" class="nav-link">Categories</a>
+                <a href="/explore" class="nav-link">Explore</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container explore-container">
+        <header>
+            <h1>Feed</h1>
+            <p class="subtitle">Recently transcribed videos.</p>
+        </header>
+
+        <main>
+            <div class="feed-controls">
+                <p class="explore-count" id="feed-count"></p>
+                <button id="btn-mark-read" class="btn btn-secondary">Mark all as read</button>
+            </div>
+            <div class="explore-grid feed-grid" id="feed-grid">
+                <p class="empty-hint">Loading...</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/feed.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categories — TubeDigest</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">TubeDigest</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/feed" class="nav-link">Feed</a>
+                <a href="/categories" class="nav-link active">Categories</a>
+                <a href="/explore" class="nav-link">Explore</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container explore-container">
+        <header>
+            <h1>Categories</h1>
+            <p class="subtitle">Pick a category to browse its items.</p>
+        </header>
+
+        <main>
+            <p class="explore-count" id="categories-count"></p>
+            <div class="explore-grid" id="categories-grid">
+                <p class="empty-hint">Loading...</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/categories.js"></script>
+</body>
+</html>

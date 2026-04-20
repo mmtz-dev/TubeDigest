@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat — TubeDigest</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">TubeDigest</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/feed" class="nav-link">Feed</a>
+                <a href="/categories" class="nav-link">Categories</a>
+                <a href="/explore" class="nav-link">Explore</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container chat-container">
+        <header class="chat-header">
+            <a href="/explore" class="back-link">← Back to Explore</a>
+            <h1 id="chat-title">Loading...</h1>
+            <p class="subtitle" id="chat-subfolder"></p>
+        </header>
+
+        <main>
+            <details class="chat-panel" id="summary-panel" open>
+                <summary>Summary</summary>
+                <div class="chat-panel-body" id="summary-body">
+                    <p class="empty-hint">No summary yet for this item.</p>
+                </div>
+            </details>
+
+            <details class="chat-panel" id="transcript-panel">
+                <summary>Transcript</summary>
+                <div class="chat-panel-body transcript-body" id="transcript-body"></div>
+            </details>
+
+            <section class="chat-section">
+                <h2>Chat</h2>
+                <div class="chat-messages" id="chat-messages">
+                    <p class="empty-hint">Ask a question about this video.</p>
+                </div>
+                <form class="chat-input-row" id="chat-form">
+                    <textarea id="chat-input" rows="2" placeholder="Ask a question... (Enter to send, Shift+Enter for newline)"></textarea>
+                    <button type="submit" id="btn-send" class="btn btn-primary">Send</button>
+                </form>
+                <p class="chat-status" id="chat-status"></p>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        window.CHAT_REL_PATH = {{ rel_path | tojson }};
+    </script>
+    <script src="/static/chat.js"></script>
+</body>
+</html>

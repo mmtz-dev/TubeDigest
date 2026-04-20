@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ category_display }} — Chat — TubeDigest</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">TubeDigest</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/feed" class="nav-link">Feed</a>
+                <a href="/categories" class="nav-link">Categories</a>
+                <a href="/explore" class="nav-link">Explore</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container chat-container cat-chat-container">
+        <header class="chat-header">
+            <a href="/categories" class="back-link">← Back to Categories</a>
+            <h1>Chat: {{ category_display }}</h1>
+            <p class="subtitle" id="cat-subtitle">Loading...</p>
+        </header>
+
+        <main class="cat-chat-main">
+            <aside class="cat-chat-items">
+                <div class="cat-chat-items-header">Items in this category</div>
+                <div id="cat-items-list"></div>
+            </aside>
+
+            <section class="chat-section cat-chat-section">
+                <div class="chat-messages" id="chat-messages">
+                    <p class="empty-hint">Ask anything about this category as a whole.</p>
+                </div>
+                <form class="chat-input-row" id="chat-form">
+                    <textarea id="chat-input" rows="2" placeholder="Ask about this category... (Enter to send)"></textarea>
+                    <button type="submit" id="btn-send" class="btn btn-primary">Send</button>
+                </form>
+                <p class="chat-status" id="chat-status"></p>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        window.CATEGORY_KEY = {{ category_key | tojson }};
+        window.CATEGORY_DISPLAY = {{ category_display | tojson }};
+    </script>
+    <script src="/static/category_chat.js"></script>
+</body>
+</html>

@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRANSCRIPTIONS_DIR = os.environ.get('TRANSCRIPTIONS_DIR', os.path.join(_PROJECT_ROOT, 'Transcriptions'))
 SUMMARIES_DIR = os.environ.get('SUMMARIES_DIR', os.path.join(_PROJECT_ROOT, 'Summaries'))
+CHATS_DIR = os.environ.get('CHATS_DIR', os.path.join(_PROJECT_ROOT, 'Chats'))
 BASE_DIR = TRANSCRIPTIONS_DIR  # backward compat alias
 
 

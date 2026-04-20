@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explore — TubeDigest</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">TubeDigest</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/feed" class="nav-link">Feed</a>
+                <a href="/categories" class="nav-link">Categories</a>
+                <a href="/explore" class="nav-link active">Explore</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container explore-container">
+        <header>
+            <h1>Explore</h1>
+            <p class="subtitle">Click an item to chat with AI about it.</p>
+        </header>
+
+        <main>
+            <div class="chip-row" id="chip-row"></div>
+            <div class="explore-controls">
+                <input type="search" id="explore-search" placeholder="Filter items..." />
+                <select id="explore-filter">
+                    <option value="all">All items</option>
+                    <option value="summarized">Summarized only</option>
+                    <option value="unsummarized">Not summarized</option>
+                </select>
+                <a id="btn-category-chat" class="btn btn-primary" hidden>Chat about this category</a>
+                <button id="btn-explore-refresh" class="btn btn-secondary">Refresh</button>
+            </div>
+            <p class="explore-count" id="explore-count"></p>
+            <div class="explore-grid" id="explore-grid">
+                <p class="empty-hint">Loading...</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/explore.js"></script>
+</body>
+</html>

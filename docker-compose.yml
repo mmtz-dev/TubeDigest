@@ -9,6 +9,7 @@ services:
       - .:/app
       - ${TRANSCRIPTIONS_DIR:-./Transcriptions}:${TRANSCRIPTIONS_DIR:-/app/Transcriptions}
       - ${SUMMARIES_DIR:-./Summaries}:${SUMMARIES_DIR:-/app/Summaries}
+      - ${CHATS_DIR:-./Chats}:${CHATS_DIR:-/app/Chats}
       - whisper-cache:/home/.cache/whisper
       - ytdlp-usage:/home/.local/share/tubedigest
     environment:
@@ -22,8 +23,10 @@ services:
       - PORT=${PORT:-5555}
       - TRANSCRIPTIONS_DIR=${TRANSCRIPTIONS_DIR:-/app/Transcriptions}
       - SUMMARIES_DIR=${SUMMARIES_DIR:-/app/Summaries}
+      - CHATS_DIR=${CHATS_DIR:-/app/Chats}
       - HOST_TRANSCRIPTIONS_DIR=${TRANSCRIPTIONS_DIR:-./Transcriptions}
       - HOST_SUMMARIES_DIR=${SUMMARIES_DIR:-./Summaries}
+      - HOST_CHATS_DIR=${CHATS_DIR:-./Chats}
     networks:
       - default
       - claude-proxy-net
