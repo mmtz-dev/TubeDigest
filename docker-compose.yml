@@ -4,7 +4,7 @@ services:
     container_name: tubedigest
     restart: unless-stopped
     ports:
-      - "${PORT:-5555}:5555"
+      - "${PORT:-8500}:5555"
     volumes:
       - .:/app
       - ${TRANSCRIPTIONS_DIR:-./Transcriptions}:${TRANSCRIPTIONS_DIR:-/app/Transcriptions}

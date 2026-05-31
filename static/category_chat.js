@@ -29,6 +29,35 @@ function renderMarkdown(text) {
     return `<pre>${d.innerHTML}</pre>`;
 }
 
+function showTyping() {
+    hideTyping();
+    const hint = messagesEl.querySelector('.empty-hint');
+    if (hint) hint.remove();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chat-msg chat-msg-assistant chat-msg-typing';
+    wrapper.id = 'chat-typing-indicator';
+
+    const label = document.createElement('div');
+    label.className = 'chat-msg-label';
+    label.textContent = 'AI';
+
+    const body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    body.setAttribute('aria-label', 'AI is thinking');
+    body.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(body);
+    messagesEl.appendChild(wrapper);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function hideTyping() {
+    const existing = document.getElementById('chat-typing-indicator');
+    if (existing) existing.remove();
+}
+
 function appendMessage(role, content, provider, retrieved) {
     const hint = messagesEl.querySelector('.empty-hint');
     if (hint) hint.remove();
@@ -132,7 +161,8 @@ async function sendMessage() {
     input.value = '';
     btnSend.disabled = true;
     input.disabled = true;
-    statusEl.textContent = 'Thinking...';
+    statusEl.textContent = '';
+    showTyping();
 
     try {
         const res = await fetch('/api/category_chat', {
@@ -141,6 +171,7 @@ async function sendMessage() {
             body: JSON.stringify({ key: catKey, message }),
         });
         const data = await res.json();
+        hideTyping();
         if (!res.ok) {
             statusEl.textContent = data.error || `Error: ${res.status}`;
             return;
@@ -148,6 +179,7 @@ async function sendMessage() {
         appendMessage('assistant', data.reply, data.provider, data.retrieved);
         statusEl.textContent = '';
     } catch (err) {
+        hideTyping();
         statusEl.textContent = 'Network error: ' + err.message;
     } finally {
         btnSend.disabled = false;

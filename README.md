@@ -7,7 +7,7 @@ A local tool that downloads YouTube transcripts and summarizes them with AI. Sup
 1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 2. Double-click `start.command`
 
-That's it — Docker starts, the app builds, and your browser opens to `http://localhost:5555`.
+That's it — Docker starts, the app builds, and your browser opens to `http://localhost:8500`.
 
 To stop, double-click `stop.command`.
 
@@ -18,7 +18,7 @@ cp .env.example .env        # create config, add API keys
 docker compose up --build -d # build and start
 ```
 
-Open `http://localhost:5555`. Stop with `docker compose down`.
+Open `http://localhost:8500`. Stop with `docker compose down`.
 
 ## Quick Start (Local Python)
 
